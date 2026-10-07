@@ -1,443 +1,503 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, ShoppingBag, Truck, X } from "lucide-react";
-import { listOrders, updateOrderStatus } from "@/lib/inventory";
-import { formatPKR } from "@/lib/products";
-import { Badge } from "@/components/ui/badge";
-import { Drawer } from "@/components/ui/drawer";
-import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { UPDATABLE_STATUSES, formatDate, inputClass, statusTone } from "../_shared";
-import type { Order, OrderStatus } from "@/lib/types";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Info } from "lucide-react";
 import { clsx } from "clsx";
+import { inputClass } from "../_shared";
+import {
+  DEFAULT_HERO_SLIDES,
+  SETTINGS_DEFAULTS,
+  loadAdminSettings,
+  parseHeroSlides,
+  saveAdminSetting,
+  type HeroSlide,
+} from "@/lib/site-settings";
+import { ImageUploadField } from "@/components/admin/image-upload-field";
+import { Skeleton } from "@/components/ui/skeleton";
 
-function itemsCount(order: Order): number {
-  return order.items.reduce((sum, item) => sum + item.qty, 0);
-}
-
-function paymentLabel(order: Order): string {
-  return order.paymentMethod === "COD" ? "Cash on delivery" : "Card";
-}
-
-/** Inline quick actions for an order row. Stops row-click propagation. */
-function RowActions({
-  order,
-  busy,
-  onAction,
-  onCancel,
+function Section({
+  title,
+  copy,
+  children,
 }: {
-  order: Order;
-  busy: boolean;
-  onAction: (order: Order, status: OrderStatus) => void;
-  onCancel: (order: Order) => void;
+  title: string;
+  copy: string;
+  children: React.ReactNode;
 }) {
-  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
-
-  const btn =
-    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-50";
-
-  if (order.status === "Cancelled" || order.status === "Delivered") {
-    return <span className="text-xs text-espresso/40">No actions</span>;
-  }
-
   return (
-    <div className="flex items-center gap-1.5" onClick={stop}>
-      {order.status === "Placed" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onAction(order, "Confirmed")}
-          title="Confirm order"
-          aria-label={`Confirm order ${order.orderNumber}`}
-          className={clsx(btn, "bg-emerald-600/10 text-emerald-700 hover:bg-emerald-600/20")}
-        >
-          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Confirm</span>
-        </button>
-      ) : null}
-      {order.status === "Confirmed" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onAction(order, "Shipped")}
-          title="Mark as shipped"
-          aria-label={`Mark order ${order.orderNumber} as shipped`}
-          className={clsx(btn, "bg-cognac/10 text-cognac-dark hover:bg-cognac/20")}
-        >
-          <Truck className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Ship</span>
-        </button>
-      ) : null}
-      {order.status === "Shipped" || order.status === "Out for delivery" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onAction(order, "Delivered")}
-          title="Mark as delivered"
-          aria-label={`Mark order ${order.orderNumber} as delivered`}
-          className={clsx(btn, "bg-emerald-600/10 text-emerald-700 hover:bg-emerald-600/20")}
-        >
-          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="hidden xl:inline">Deliver</span>
-        </button>
-      ) : null}
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => onCancel(order)}
-        title="Cancel order"
-        aria-label={`Cancel order ${order.orderNumber}`}
-        className={clsx(btn, "bg-[#8C2F2F]/10 text-[#8C2F2F] hover:bg-[#8C2F2F]/20")}
-      >
-        <X className="h-3.5 w-3.5" aria-hidden="true" />
-        <span className="hidden xl:inline">Cancel</span>
-      </button>
-    </div>
+    <section className="rounded-2xl border border-espresso/10 bg-white p-5 sm:p-6">
+      <h2 className="font-display text-xl text-espresso">{title}</h2>
+      <p className="mt-1 text-sm text-espresso/60">{copy}</p>
+      <div className="mt-5 space-y-5">{children}</div>
+    </section>
   );
 }
 
-export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[] | null>(null);
-  const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
-  const [statusBusy, setStatusBusy] = useState(false);
-  const [rowBusy, setRowBusy] = useState<string | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
-  const [error, setError] = useState("");
+function SaveButton({
+  busy,
+  dirty,
+  onSave,
+}: {
+  busy: boolean;
+  dirty: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSave}
+      disabled={busy || !dirty}
+      className="inline-flex items-center justify-center rounded-full bg-espresso px-6 py-2.5 text-sm font-medium text-ivory transition-colors hover:bg-espresso-deep disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {busy ? "Saving..." : "Save changes"}
+    </button>
+  );
+}
 
-  async function load() {
-    try {
-      setOrders(await listOrders());
-    } catch {
-      setError("Could not load orders. Please refresh the page.");
-    }
-  }
+function SaveState({ saved, error }: { saved: boolean; error: string }) {
+  return (
+    <>
+      {saved ? (
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          Saved
+        </span>
+      ) : null}
+      {error ? (
+        <span className="text-sm font-medium text-[#8C2F2F]">{error}</span>
+      ) : null}
+    </>
+  );
+}
+
+const EMPTY_SLIDE: HeroSlide = {
+  eyebrow: "",
+  headline: "",
+  subtext: "",
+  ctaLabel: "Shop Now",
+  ctaLink: "/shop",
+  image: "",
+};
+
+function blankSlides(): HeroSlide[] {
+  return [0, 1, 2].map(() => ({ ...EMPTY_SLIDE }));
+}
+
+/** datetime-local value (YYYY-MM-DDTHH:MM) from an ISO string. */
+function toLocalInput(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
+export default function ContentPage() {
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  // Announcement
+  const [announcement, setAnnouncement] = useState("");
+  const [announcementSaved, setAnnouncementSaved] = useState<
+    Record<string, string>
+  >({});
+
+  // Hero slides
+  const [slides, setSlides] = useState<HeroSlide[]>(blankSlides());
+
+  // Sale
+  const [saleTitle, setSaleTitle] = useState(SETTINGS_DEFAULTS.sale_title);
+  const [saleSubtitle, setSaleSubtitle] = useState(SETTINGS_DEFAULTS.sale_subtitle);
+  const [saleEndsAt, setSaleEndsAt] = useState("");
+
+  // Contact
+  const [whatsapp, setWhatsapp] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+
+  const [busy, setBusy] = useState<string | null>(null);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    load();
+    loadAdminSettings()
+      .then(({ values }) => {
+        setAnnouncement(values["announcement_text"] ?? "");
+        setAnnouncementSaved({ announcement_text: values["announcement_text"] ?? "" });
+
+        const parsed = parseHeroSlides(values["hero_slides"]);
+        const filled = [0, 1, 2].map((i) => ({ ...EMPTY_SLIDE, ...(parsed[i] ?? {}) }));
+        setSlides(filled);
+
+        setSaleTitle(values["sale_title"] || SETTINGS_DEFAULTS.sale_title);
+        setSaleSubtitle(values["sale_subtitle"] || SETTINGS_DEFAULTS.sale_subtitle);
+        const endsAt = values["sale_ends_at"] ?? "";
+        setSaleEndsAt(
+          toLocalInput(endsAt) ||
+            toLocalInput(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString())
+        );
+
+        setWhatsapp(values["whatsapp_owner_number"] ?? "");
+        setPhone(values["support_phone"] ?? "");
+        setEmail(values["support_email"] ?? "");
+        setLoaded(true);
+      })
+      .catch(() => {
+        setLoadError("Could not load content. Please refresh the page.");
+      });
   }, []);
 
-  const sorted = useMemo(() => {
-    if (!orders) return null;
-    return [...orders].sort((a, b) => b.placedAt.localeCompare(a.placedAt));
-  }, [orders]);
-
-  const selected = useMemo(
-    () => orders?.find((o) => o.orderNumber === selectedNumber) ?? null,
-    [orders, selectedNumber]
-  );
-
-  async function handleStatusChange(order: Order, status: OrderStatus) {
-    if (status === order.status) return;
-    setError("");
-    setStatusBusy(true);
+  async function save(key: string, value: string, section: string) {
+    setBusy(section);
+    setSavedKey(null);
+    setErrorKey(null);
+    setErrorMsg("");
     try {
-      await updateOrderStatus(order.orderNumber, status);
-      setOrders(await listOrders());
+      await saveAdminSetting(key, value);
+      setSavedKey(section);
+      if (key === "announcement_text") {
+        setAnnouncementSaved({ announcement_text: value });
+      }
     } catch {
-      setError("Could not update the order status. Please try again.");
+      setErrorKey(section);
+      setErrorMsg("Could not save. Please try again.");
     } finally {
-      setStatusBusy(false);
+      setBusy(null);
     }
   }
 
-  /** Inline row action (confirm / ship / deliver). Cancel goes through a dialog. */
-  async function handleRowAction(order: Order, status: OrderStatus) {
-    if (status === order.status) return;
-    setError("");
-    setRowBusy(order.orderNumber);
-    try {
-      await updateOrderStatus(order.orderNumber, status);
-      setOrders(await listOrders());
-    } catch {
-      setError(`Could not update order ${order.orderNumber}. Please try again.`);
-    } finally {
-      setRowBusy(null);
-    }
+  async function saveSlides() {
+    const cleaned = slides.filter((s) => s.headline.trim() && s.image.trim());
+    await save("hero_slides", JSON.stringify(cleaned), "hero");
   }
 
-  async function confirmCancel() {
-    if (!cancelTarget) return;
-    const target = cancelTarget;
-    setCancelTarget(null);
-    await handleRowAction(target, "Cancelled");
+  async function saveSale() {
+    const iso = saleEndsAt ? new Date(saleEndsAt).toISOString() : "";
+    await save("sale_title", saleTitle.trim(), "sale");
+    await save("sale_subtitle", saleSubtitle.trim(), "sale");
+    await save("sale_ends_at", iso, "sale");
+  }
+
+  function updateSlide(index: number, patch: Partial<HeroSlide>) {
+    setSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  }
+
+  if (!loaded && !loadError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-3xl text-espresso">Site content</h1>
+          <p className="mt-1 text-sm text-espresso/60">Loading...</p>
+        </div>
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl text-espresso">Orders</h1>
+        <h1 className="font-display text-3xl text-espresso">Site content</h1>
         <p className="mt-1 text-sm text-espresso/60">
-          Click an order to see the details and update its status.
+          Edit the homepage and store-wide text without touching code. Changes go
+          live within a few minutes.
         </p>
       </div>
 
-      {error ? (
+      {loadError ? (
         <p className="rounded-xl border border-[#8C2F2F]/20 bg-[#8C2F2F]/5 px-4 py-3 text-sm font-medium text-[#8C2F2F]">
-          {error}
+          {loadError}
         </p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-2xl border border-espresso/10 bg-white">
-        <table className="w-full min-w-[860px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-espresso/10 text-xs uppercase tracking-wide text-espresso/50">
-              <th className="px-4 py-3 font-semibold">Order no.</th>
-              <th className="px-4 py-3 font-semibold">Date</th>
-              <th className="px-4 py-3 font-semibold">Customer</th>
-              <th className="px-4 py-3 font-semibold">Items</th>
-              <th className="px-4 py-3 font-semibold">Total</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted === null ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-espresso/5">
-                  <td className="px-4 py-3" colSpan={7}>
-                    <Skeleton className="h-8 w-full" />
-                  </td>
-                </tr>
-              ))
-            ) : sorted.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-16 text-center">
-                  <ShoppingBag
-                    className="mx-auto h-10 w-10 text-espresso/25"
-                    aria-hidden="true"
-                  />
-                  <p className="mt-3 font-display text-xl text-espresso">
-                    No orders yet
-                  </p>
-                  <p className="mt-1 text-sm text-espresso/60">
-                    Orders placed on the store will appear here.
-                  </p>
-                </td>
-              </tr>
-            ) : (
-              sorted.map((order) => (
-                <tr
-                  key={order.orderNumber}
-                  onClick={() => setSelectedNumber(order.orderNumber)}
-                  className="cursor-pointer border-b border-espresso/5 transition-colors last:border-0 hover:bg-ivory-dark/60"
-                >
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs font-semibold text-cognac">
-                      {order.orderNumber}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-espresso/80">
-                    {formatDate(order.placedAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-espresso">{order.name}</p>
-                    <p className="text-xs text-espresso/50">{order.city}</p>
-                  </td>
-                  <td className="px-4 py-3 text-espresso/80">{itemsCount(order)}</td>
-                  <td className="px-4 py-3 font-medium text-espresso">
-                    {formatPKR(order.total)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={statusTone(order.status)}>{order.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <RowActions
-                      order={order}
-                      busy={rowBusy === order.orderNumber}
-                      onAction={handleRowAction}
-                      onCancel={setCancelTarget}
-                    />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Cancel confirmation */}
-      <Modal
-        open={cancelTarget !== null}
-        onClose={() => setCancelTarget(null)}
-        title="Cancel order"
+      {/* Announcement bar */}
+      <Section
+        title="Announcement bar"
+        copy="The strip at the very top of every store page. Leave empty to keep the default rotating messages."
       >
-        {cancelTarget ? (
-          <div className="space-y-5">
-            <p className="text-sm leading-relaxed text-espresso/80">
-              Cancel order{" "}
-              <strong className="font-mono text-cognac">{cancelTarget.orderNumber}</strong>{" "}
-              for <strong className="text-espresso">{cancelTarget.name}</strong>? This
-              cannot be undone.
+        <div>
+          <label
+            htmlFor="content-announcement"
+            className="mb-1.5 block text-sm font-medium text-espresso"
+          >
+            Announcement text
+          </label>
+          <textarea
+            id="content-announcement"
+            value={announcement}
+            onChange={(e) => setAnnouncement(e.target.value)}
+            rows={2}
+            placeholder="e.g. Complimentary shipping on orders over Rs 15,000"
+            className={inputClass}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <SaveButton
+            busy={busy === "announcement"}
+            dirty={announcement !== (announcementSaved["announcement_text"] ?? "")}
+            onSave={() => save("announcement_text", announcement.trim(), "announcement")}
+          />
+          <SaveState saved={savedKey === "announcement"} error={errorKey === "announcement" ? errorMsg : ""} />
+        </div>
+      </Section>
+
+      {/* Hero slides */}
+      <Section
+        title="Homepage hero slides"
+        copy="The rotating banners at the top of the homepage. Each slide needs a headline and an image; empty slides are skipped."
+      >
+        {slides.map((slide, i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-espresso/10 bg-ivory-dark/40 p-4 sm:p-5"
+          >
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-espresso/50">
+              Slide {i + 1}
             </p>
-            <div className="flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCancelTarget(null)}
-              >
-                Keep order
-              </Button>
-              <button
-                type="button"
-                onClick={confirmCancel}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#8C2F2F] px-6 py-3 text-sm font-medium text-white transition-all hover:bg-[#6f2525] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C2F2F]"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-                Yes, cancel order
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
-
-      {/* Order detail drawer */}
-      <Drawer
-        open={selected !== null}
-        onClose={() => setSelectedNumber(null)}
-        title={selected ? `Order ${selected.orderNumber}` : "Order"}
-      >
-        {selected ? (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Badge tone={statusTone(selected.status)}>{selected.status}</Badge>
-              <span className="text-sm text-espresso/60">
-                Placed on {formatDate(selected.placedAt)}
-              </span>
-            </div>
-
-            {/* Customer */}
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-espresso/50">
-                Customer
-              </h3>
-              <div className="mt-2 rounded-xl bg-white p-4 text-sm leading-relaxed text-espresso">
-                <p className="font-semibold">{selected.name}</p>
-                <p className="text-espresso/70">{selected.phone}</p>
-                {selected.email ? (
-                  <p className="text-espresso/70">{selected.email}</p>
-                ) : null}
-                <p className="mt-2 text-espresso/70">
-                  {selected.address}
-                  <br />
-                  {selected.city}
-                </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor={`slide-${i}-eyebrow`}
+                  className="mb-1.5 block text-sm font-medium text-espresso"
+                >
+                  Eyebrow (small label)
+                </label>
+                <input
+                  id={`slide-${i}-eyebrow`}
+                  value={slide.eyebrow}
+                  onChange={(e) => updateSlide(i, { eyebrow: e.target.value })}
+                  className={inputClass}
+                  placeholder={DEFAULT_HERO_SLIDES[i]?.eyebrow ?? ""}
+                />
               </div>
-            </section>
-
-            {/* Items */}
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-espresso/50">
-                Items ({itemsCount(selected)})
-              </h3>
-              <ul className="mt-2 divide-y divide-espresso/5 rounded-xl bg-white px-4">
-                {selected.items.map((item, i) => (
-                  <li key={`${item.name}-${i}`} className="py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-espresso">
-                          {item.name} <span className="text-espresso/50">x {item.qty}</span>
-                        </p>
-                        <p className="text-xs text-espresso/50">{item.variantLabel}</p>
-                      </div>
-                      <p className="text-sm font-medium text-espresso">
-                        {formatPKR(item.price * item.qty)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            {/* Summary */}
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-espresso/50">
-                Summary
-              </h3>
-              <dl className="mt-2 space-y-1.5 rounded-xl bg-white p-4 text-sm text-espresso">
-                <div className="flex justify-between">
-                  <dt className="text-espresso/60">Subtotal</dt>
-                  <dd>{formatPKR(selected.subtotal)}</dd>
-                </div>
-                {selected.discount > 0 ? (
-                  <div className="flex justify-between">
-                    <dt className="text-espresso/60">Discount</dt>
-                    <dd className="text-emerald-700">-{formatPKR(selected.discount)}</dd>
-                  </div>
-                ) : null}
-                <div className="flex justify-between">
-                  <dt className="text-espresso/60">Delivery</dt>
-                  <dd>{formatPKR(selected.deliveryFee)}</dd>
-                </div>
-                <div className="flex justify-between border-t border-espresso/10 pt-2 font-semibold">
-                  <dt>Total</dt>
-                  <dd>{formatPKR(selected.total)}</dd>
-                </div>
-                <div className="flex justify-between pt-1">
-                  <dt className="text-espresso/60">Payment</dt>
-                  <dd>{paymentLabel(selected)}</dd>
-                </div>
-              </dl>
-            </section>
-
-            {/* Status timeline */}
-            {selected.timeline.length > 0 ? (
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-espresso/50">
-                  Timeline
-                </h3>
-                <ol className="mt-2 space-y-2.5 rounded-xl bg-white p-4">
-                  {selected.timeline.map((entry, i) => (
-                    <li key={`${entry.label}-${i}`} className="flex items-start gap-3 text-sm">
-                      <span
-                        className={clsx(
-                          "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                          i === 0 ? "bg-cognac" : "bg-espresso/20"
-                        )}
-                        aria-hidden="true"
-                      />
-                      <div>
-                        <p className="font-medium text-espresso">{entry.label}</p>
-                        <p className="text-xs text-espresso/50">{formatDate(entry.at)}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ) : null}
-
-            {/* Status update */}
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-espresso/50">
-                Update status
-              </h3>
-              <select
-                value={selected.status}
-                onChange={(event) =>
-                  handleStatusChange(selected, event.target.value as OrderStatus)
-                }
-                disabled={statusBusy}
-                aria-label="Order status"
-                className={clsx(inputClass, "mt-2", statusBusy && "opacity-60")}
-              >
-                {UPDATABLE_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-                {/* Legacy status kept readable on old rows; new orders use the pipeline above. */}
-                {!UPDATABLE_STATUSES.includes(selected.status) ? (
-                  <option value={selected.status}>{selected.status}</option>
-                ) : null}
-              </select>
-              {statusBusy ? (
-                <p className="mt-2 text-xs text-espresso/50">Updating status...</p>
-              ) : null}
-            </section>
+              <div>
+                <label
+                  htmlFor={`slide-${i}-cta-label`}
+                  className="mb-1.5 block text-sm font-medium text-espresso"
+                >
+                  Button label
+                </label>
+                <input
+                  id={`slide-${i}-cta-label`}
+                  value={slide.ctaLabel}
+                  onChange={(e) => updateSlide(i, { ctaLabel: e.target.value })}
+                  className={inputClass}
+                  placeholder="Shop Now"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor={`slide-${i}-headline`}
+                  className="mb-1.5 block text-sm font-medium text-espresso"
+                >
+                  Headline
+                </label>
+                <input
+                  id={`slide-${i}-headline`}
+                  value={slide.headline}
+                  onChange={(e) => updateSlide(i, { headline: e.target.value })}
+                  className={inputClass}
+                  placeholder={DEFAULT_HERO_SLIDES[i]?.headline ?? ""}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor={`slide-${i}-subtext`}
+                  className="mb-1.5 block text-sm font-medium text-espresso"
+                >
+                  Subtext
+                </label>
+                <textarea
+                  id={`slide-${i}-subtext`}
+                  value={slide.subtext}
+                  onChange={(e) => updateSlide(i, { subtext: e.target.value })}
+                  rows={2}
+                  className={inputClass}
+                  placeholder={DEFAULT_HERO_SLIDES[i]?.subtext ?? ""}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor={`slide-${i}-cta-link`}
+                  className="mb-1.5 block text-sm font-medium text-espresso"
+                >
+                  Button link
+                </label>
+                <input
+                  id={`slide-${i}-cta-link`}
+                  value={slide.ctaLink}
+                  onChange={(e) => updateSlide(i, { ctaLink: e.target.value })}
+                  className={inputClass}
+                  placeholder="/shop"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <ImageUploadField
+                  label="Slide image"
+                  help="Landscape images work best (at least 1600 px wide)."
+                  value={slide.image}
+                  onChange={(url) => updateSlide(i, { image: url })}
+                />
+                <label
+                  htmlFor={`slide-${i}-image-url`}
+                  className="mb-1.5 mt-3 block text-sm font-medium text-espresso"
+                >
+                  Or paste an image URL
+                </label>
+                <input
+                  id={`slide-${i}-image-url`}
+                  type="url"
+                  value={slide.image}
+                  onChange={(e) => updateSlide(i, { image: e.target.value })}
+                  className={inputClass}
+                  placeholder="/images/hero.jpg or https://..."
+                />
+              </div>
+            </div>
           </div>
-        ) : null}
-      </Drawer>
+        ))}
+        <div className="flex items-center gap-3">
+          <SaveButton busy={busy === "hero"} dirty onSave={saveSlides} />
+          <SaveState saved={savedKey === "hero"} error={errorKey === "hero" ? errorMsg : ""} />
+        </div>
+        <p className="flex gap-2 text-xs text-espresso/50">
+          <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Tip: if you leave all three slides empty, the homepage falls back to the
+          built-in premium slides.
+        </p>
+      </Section>
+
+      {/* Sale */}
+      <Section
+        title="Sale section"
+        copy="The limited-time sale band on the homepage. It appears automatically when products have a discounted price."
+      >
+        <div>
+          <label
+            htmlFor="content-sale-title"
+            className="mb-1.5 block text-sm font-medium text-espresso"
+          >
+            Sale title
+          </label>
+          <input
+            id="content-sale-title"
+            value={saleTitle}
+            onChange={(e) => setSaleTitle(e.target.value)}
+            className={inputClass}
+            placeholder="Private Sale"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="content-sale-subtitle"
+            className="mb-1.5 block text-sm font-medium text-espresso"
+          >
+            Sale subtitle
+          </label>
+          <textarea
+            id="content-sale-subtitle"
+            value={saleSubtitle}
+            onChange={(e) => setSaleSubtitle(e.target.value)}
+            rows={2}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="content-sale-ends"
+            className="mb-1.5 block text-sm font-medium text-espresso"
+          >
+            Sale ends (countdown target)
+          </label>
+          <input
+            id="content-sale-ends"
+            type="datetime-local"
+            value={saleEndsAt}
+            onChange={(e) => setSaleEndsAt(e.target.value)}
+            className={clsx(inputClass, "max-w-xs")}
+          />
+          <p className="mt-1.5 text-xs text-espresso/50">
+            The homepage countdown ticks down to this date and time.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <SaveButton busy={busy === "sale"} dirty onSave={saveSale} />
+          <SaveState saved={savedKey === "sale"} error={errorKey === "sale" ? errorMsg : ""} />
+        </div>
+      </Section>
+
+      {/* Contact */}
+      <Section
+        title="Contact details"
+        copy="Shown in the store footer and on the contact page. The WhatsApp number also powers order alerts and the WhatsApp order buttons."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="content-whatsapp"
+              className="mb-1.5 block text-sm font-medium text-espresso"
+            >
+              WhatsApp owner number
+            </label>
+            <input
+              id="content-whatsapp"
+              inputMode="numeric"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ""))}
+              className={inputClass}
+              placeholder="923001234567"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="content-phone"
+              className="mb-1.5 block text-sm font-medium text-espresso"
+            >
+              Support phone
+            </label>
+            <input
+              id="content-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={inputClass}
+              placeholder="0300 1234567"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="content-email"
+              className="mb-1.5 block text-sm font-medium text-espresso"
+            >
+              Support email
+            </label>
+            <input
+              id="content-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+              placeholder="support@tannandthread.pk"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <SaveButton
+            busy={busy === "contact"}
+            dirty
+            onSave={async () => {
+              await save("whatsapp_owner_number", whatsapp.trim(), "contact");
+              await save("support_phone", phone.trim(), "contact");
+              await save("support_email", email.trim(), "contact");
+            }}
+          />
+          <SaveState saved={savedKey === "contact"} error={errorKey === "contact" ? errorMsg : ""} />
+        </div>
+      </Section>
     </div>
   );
 }
