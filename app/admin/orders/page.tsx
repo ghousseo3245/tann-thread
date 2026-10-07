@@ -7,7 +7,7 @@ import { formatPKR } from "@/lib/products";
 import { Badge } from "@/components/ui/badge";
 import { Drawer } from "@/components/ui/drawer";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ORDER_STATUSES, formatDate, inputClass, statusTone } from "../_shared";
+import { UPDATABLE_STATUSES, formatDate, inputClass, statusTone } from "../_shared";
 import type { Order, OrderStatus } from "@/lib/types";
 import { clsx } from "clsx";
 
@@ -274,11 +274,15 @@ export default function OrdersPage() {
                 aria-label="Order status"
                 className={clsx(inputClass, "mt-2", statusBusy && "opacity-60")}
               >
-                {ORDER_STATUSES.map((status) => (
+                {UPDATABLE_STATUSES.map((status) => (
                   <option key={status} value={status}>
                     {status}
                   </option>
                 ))}
+                {/* Legacy status kept readable on old rows; new orders use the pipeline above. */}
+                {!UPDATABLE_STATUSES.includes(selected.status) ? (
+                  <option value={selected.status}>{selected.status}</option>
+                ) : null}
               </select>
               {statusBusy ? (
                 <p className="mt-2 text-xs text-espresso/50">Updating status...</p>
