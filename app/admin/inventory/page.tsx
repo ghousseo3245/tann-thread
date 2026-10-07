@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
   Minus,
+  Package,
   Plus,
   Search,
   Trash2,
@@ -67,6 +68,7 @@ export default function InventoryPage() {
   const [formStock, setFormStock] = useState("");
   const [formTagline, setFormTagline] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formImageUrl, setFormImageUrl] = useState("");
   const [formActive, setFormActive] = useState(true);
   const [formError, setFormError] = useState("");
   const [formBusy, setFormBusy] = useState(false);
@@ -217,6 +219,7 @@ export default function InventoryPage() {
     setFormStock("");
     setFormTagline("");
     setFormDescription("");
+    setFormImageUrl("");
     setFormActive(true);
     setFormError("");
   }
@@ -258,6 +261,7 @@ export default function InventoryPage() {
         stock: stockNum,
         description: formDescription.trim(),
         tagline: formTagline.trim() || undefined,
+        imageUrl: formImageUrl.trim() || undefined,
         active: formActive,
       };
       await createProduct(input);
@@ -421,22 +425,41 @@ export default function InventoryPage() {
                   >
                     {/* Product */}
                     <td className="px-4 py-3">
-                      <p className="font-medium text-espresso">{row.product.name}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        {row.variant ? (
-                          <span className="text-xs text-espresso/50">
-                            {variantLabel(row.variant)}
+                      <div className="flex items-center gap-3">
+                        {row.product.images[0] ? (
+                          <img
+                            src={row.product.images[0]}
+                            alt=""
+                            loading="lazy"
+                            className="h-11 w-11 shrink-0 rounded-xl border border-espresso/10 object-cover"
+                          />
+                        ) : (
+                          <span
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-espresso/5 text-espresso/40"
+                            aria-hidden="true"
+                          >
+                            <Package className="h-5 w-5" />
                           </span>
-                        ) : null}
-                        {isLow ? (
-                          <Badge tone="low">
-                            <TriangleAlert
-                              className="mr-1 h-3 w-3"
-                              aria-hidden="true"
-                            />
-                            Low stock
-                          </Badge>
-                        ) : null}
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-medium text-espresso">{row.product.name}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            {row.variant ? (
+                              <span className="text-xs text-espresso/50">
+                                {variantLabel(row.variant)}
+                              </span>
+                            ) : null}
+                            {isLow ? (
+                              <Badge tone="low">
+                                <TriangleAlert
+                                  className="mr-1 h-3 w-3"
+                                  aria-hidden="true"
+                                />
+                                Low stock
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     {/* SKU */}
@@ -675,6 +698,23 @@ export default function InventoryPage() {
               className={inputClass}
               placeholder="Full product description"
             />
+          </div>
+
+          <div>
+            <label htmlFor="new-image" className="mb-1.5 block text-sm font-medium text-espresso">
+              Image URL
+            </label>
+            <input
+              id="new-image"
+              type="url"
+              value={formImageUrl}
+              onChange={(event) => setFormImageUrl(event.target.value)}
+              className={inputClass}
+              placeholder="https://..."
+            />
+            <p className="mt-1 text-xs text-espresso/50">
+              Used as the product thumbnail. Leave empty to use the category image.
+            </p>
           </div>
 
           <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-espresso">
