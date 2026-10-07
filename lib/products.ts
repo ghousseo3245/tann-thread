@@ -715,15 +715,22 @@ export const journalPosts: JournalPost[] = [
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-export function getProductBySlug(slug: string): Product | undefined {
-  return products.find((p) => p.slug === slug);
+export function getProductBySlug(
+  slug: string,
+  list: Product[] = products
+): Product | undefined {
+  return list.find((p) => p.slug === slug);
 }
 
-export function getRelatedProducts(product: Product, n = 4): Product[] {
-  const sameCategory = products.filter(
+export function getRelatedProducts(
+  product: Product,
+  n = 4,
+  list: Product[] = products
+): Product[] {
+  const sameCategory = list.filter(
     (p) => p.category === product.category && p.slug !== product.slug
   );
-  const others = products.filter((p) => p.category !== product.category);
+  const others = list.filter((p) => p.category !== product.category);
   return [...sameCategory, ...others].slice(0, n);
 }
 
@@ -736,12 +743,12 @@ export type ProductQuery = {
   sort?: "featured" | "price-asc" | "price-desc" | "rating" | "newest";
 };
 
-export function queryProducts(opts: ProductQuery): Product[] {
+export function queryProducts(opts: ProductQuery, list: Product[] = products): Product[] {
   const { q, category, maxPrice, colors, inStock, sort } = opts;
-  let list = [...products];
+  let filtered = [...list];
   if (q) {
     const needle = q.toLowerCase();
-    list = list.filter((p) =>
+    filtered = filtered.filter((p) =>
       [p.name, p.tagline, p.description, p.category]
         .join(" ")
         .toLowerCase()
@@ -749,40 +756,40 @@ export function queryProducts(opts: ProductQuery): Product[] {
     );
   }
   if (category) {
-    list = list.filter((p) => p.category === category);
+    filtered = filtered.filter((p) => p.category === category);
   }
   if (maxPrice !== undefined) {
-    list = list.filter((p) => p.price <= maxPrice);
+    filtered = filtered.filter((p) => p.price <= maxPrice);
   }
   if (colors && colors.length > 0) {
-    list = list.filter((p) => p.variants.some((v) => colors.includes(v.color)));
+    filtered = filtered.filter((p) => p.variants.some((v) => colors.includes(v.color)));
   }
   if (inStock) {
-    list = list.filter((p) => p.variants.some((v) => v.stock > 0));
+    filtered = filtered.filter((p) => p.variants.some((v) => v.stock > 0));
   }
   switch (sort) {
     case "price-asc":
-      list.sort((a, b) => a.price - b.price);
+      filtered.sort((a, b) => a.price - b.price);
       break;
     case "price-desc":
-      list.sort((a, b) => b.price - a.price);
+      filtered.sort((a, b) => b.price - a.price);
       break;
     case "rating":
-      list.sort((a, b) => b.rating - a.rating);
+      filtered.sort((a, b) => b.rating - a.rating);
       break;
     case "newest":
-      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       break;
     case "featured":
     default:
-      list.sort(
+      filtered.sort(
         (a, b) =>
           Number(b.featured ?? false) - Number(a.featured ?? false) ||
           Number(b.bestSeller ?? false) - Number(a.bestSeller ?? false)
       );
       break;
   }
-  return list;
+  return filtered;
 }
 
 export function getJournalPost(slug: string): JournalPost | undefined {

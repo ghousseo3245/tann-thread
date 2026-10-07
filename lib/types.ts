@@ -33,6 +33,8 @@ export type Product = {
   featured?: boolean;
   bestSeller?: boolean;
   isNew?: boolean;
+  /** Admin flag: hidden from the storefront when false. Defaults to true. */
+  active?: boolean;
   createdAt: string;
 };
 

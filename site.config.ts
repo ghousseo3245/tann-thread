@@ -19,6 +19,8 @@ export const siteConfig = {
     whatsapp: "TODO: WhatsApp number, country code without +",
   },
   freeShippingThreshold: 15000,
+  // Admin dashboard: a variant with stock at or below this is flagged low-stock.
+  lowStockThreshold: 5,
   promoCodes: {
     // promo code -> percent off
     WELCOME10: 10,

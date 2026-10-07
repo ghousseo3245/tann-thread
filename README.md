@@ -86,11 +86,22 @@ Before launch, swap out the Phase 1 placeholders:
   3. `contact.address` ("TODO: store street address")
   4. `contact.whatsapp` ("TODO: WhatsApp number, country code without +")
 
+## Admin dashboard
+
+The store ships with an admin dashboard at **`/admin`** (dark sidebar layout, separate from the storefront):
+
+- **`/admin/login`** — password gate. Set `ADMIN_PASSWORD` in your environment (Netlify: Site settings > Environment Variables, then redeploy). While unset, the demo password `admin123` works and an amber "change me" banner is shown. Login sets an httpOnly signed session cookie (12h); `middleware.ts` protects all other `/admin/*` routes.
+- **`/admin`** — overview: total products, low-stock variant count, orders, revenue (PKR), recent orders, and a "Demo mode / Supabase connected" indicator.
+- **`/admin/inventory`** — the inventory manager: searchable/sortable table of every product x variant (name, SKU, category, price, stock). Click a price or stock value to edit inline (steppers included), toggle Active/Draft, delete with confirmation, and add new products via the "Add product" modal. Rows at or below the low-stock threshold (`lowStockThreshold` in `site.config.ts`, default 5) get a "Low stock" badge.
+- **`/admin/orders`** — orders table with a detail drawer (customer, items, totals, timeline) and a status dropdown (Placed > Confirmed > Shipped > Out for delivery > Delivered).
+
+**Demo mode vs Supabase mode (automatic):** if `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, the dashboard reads/writes your Supabase database (run **both** migrations in `supabase/migrations/` in order). Otherwise it runs on the seed catalog plus `localStorage` overrides (`tt_admin_overrides`), and the storefront reflects admin edits immediately in both modes. Admin API routes live under `/api/admin/*` and require the session cookie (401 without it).
+
 ## What Phase 2 adds
 
 - Supabase Auth with customer accounts (sign in, order history, saved addresses)
-- Admin dashboard (orders, inventory, reviews moderation, coupons, settings)
 - Resend transactional emails (order confirmations, shipping updates)
 - Stripe live payments (card checkout; the test scaffold becomes real checkout)
 - Loyalty program
 - AI product search and chatbot
+- Admin: review moderation, coupons manager, settings UI

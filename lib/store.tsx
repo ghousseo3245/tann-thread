@@ -40,7 +40,7 @@ function writeLS(key: string, value: unknown): void {
 /* tried without placing a real order. Not real customer data.        */
 /* ------------------------------------------------------------------ */
 
-const DEMO_ORDERS: Order[] = [
+export const DEMO_ORDERS: Order[] = [
   {
     orderNumber: "TT-2026-1042",
     phone: "03001234567",
