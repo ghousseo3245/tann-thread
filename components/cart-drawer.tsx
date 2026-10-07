@@ -89,8 +89,8 @@ export function CartDrawer() {
           <span className="rounded-full bg-espresso/5 p-5">
             <ShoppingBag className="h-8 w-8 text-espresso/50" aria-hidden="true" />
           </span>
-          <h3 className="font-display text-2xl text-espresso mt-6">Your bag is empty</h3>
-          <p className="mt-2 max-w-xs text-sm text-espresso/60">
+          <h3 className="font-display mt-6 text-2xl tracking-tight text-espresso">Your bag is empty</h3>
+          <p className="mt-2 max-w-xs text-sm leading-relaxed text-espresso/60">
             Beautiful full-grain leather goods are waiting. Start with our best sellers.
           </p>
           <Button
@@ -107,8 +107,8 @@ export function CartDrawer() {
         <div className="flex min-h-full flex-col">
           <div className="flex-1">
             {/* Free shipping progress */}
-            <div className="rounded-xl bg-ivory-dark p-4">
-              <p className="text-sm text-espresso">
+            <div className="rounded-2xl bg-ivory-dark p-4 ring-1 ring-espresso/10">
+              <p className="text-sm leading-relaxed text-espresso">
                 {remaining > 0 ? (
                   <>
                     <strong className="font-semibold">{formatPKR(remaining)}</strong> away from
@@ -138,8 +138,8 @@ export function CartDrawer() {
             {/* Line items */}
             <ul className="mt-4 divide-y divide-espresso/10">
               {cart.map((item) => (
-                <li key={item.variantId} className="flex gap-4 py-4">
-                  <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-espresso/5">
+                <li key={item.variantId} className="flex gap-4 py-5">
+                  <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-xl bg-espresso/5 ring-1 ring-espresso/10">
                     <Image
                       src={item.image}
                       alt={item.name}
@@ -151,10 +151,10 @@ export function CartDrawer() {
                   <div className="flex flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-medium text-espresso leading-snug">{item.name}</p>
-                        <p className="mt-0.5 text-xs text-espresso/55">
+                        <p className="font-display text-[15px] leading-snug text-espresso">{item.name}</p>
+                        <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-espresso/50">
                           {item.color}
-                          {item.size ? ` / Size ${item.size}` : ""}
+                          {item.size ? ` · Size ${item.size}` : ""}
                         </p>
                       </div>
                       <button
@@ -172,7 +172,7 @@ export function CartDrawer() {
                         qty={item.qty}
                         onChange={(q) => updateQty(item.variantId, q)}
                       />
-                      <p className="text-sm font-semibold text-espresso">
+                      <p className="text-sm font-semibold tabular-nums text-espresso">
                         {formatPKR(item.price * item.qty)}
                       </p>
                     </div>
@@ -242,26 +242,30 @@ export function CartDrawer() {
           {/* Summary footer */}
           <div className="sticky bottom-0 -mx-5 mt-4 border-t border-espresso/10 bg-ivory px-5 pb-2 pt-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-espresso/70">Subtotal</span>
-              <span className="font-semibold text-espresso">{formatPKR(subtotal)}</span>
+              <span className="text-espresso/65">Subtotal</span>
+              <span className="font-semibold tabular-nums text-espresso">{formatPKR(subtotal)}</span>
             </div>
             {promoDiscount > 0 ? (
-              <div className="mt-1 flex items-center justify-between text-sm">
-                <span className="text-espresso/70">Discount{promo ? ` (${promo})` : ""}</span>
-                <span className="font-semibold text-cognac-dark">-{formatPKR(promoDiscount)}</span>
+              <div className="mt-1.5 flex items-center justify-between text-sm">
+                <span className="text-espresso/65">Discount{promo ? ` (${promo})` : ""}</span>
+                <span className="font-semibold tabular-nums text-cognac-dark">-{formatPKR(promoDiscount)}</span>
               </div>
             ) : null}
-            <p className="mt-1 text-xs text-espresso/50">
+            <p className="mt-1.5 text-xs leading-relaxed text-espresso/50">
               Delivery calculated at checkout. Complimentary over {formatPKR(threshold)}.
             </p>
-            <Button size="lg" className="mt-3 w-full" onClick={handleCheckout}>
+            <Button
+              size="lg"
+              className="mt-4 w-full shadow-md shadow-cognac/25 transition-all hover:-translate-y-px hover:shadow-lg hover:shadow-cognac/30"
+              onClick={handleCheckout}
+            >
               Proceed to Checkout
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
             <button
               type="button"
               onClick={() => setCartOpen(false)}
-              className="mt-2 w-full py-2 text-center text-sm font-medium text-espresso/60 hover:text-espresso"
+              className="mt-2 w-full py-2.5 text-center text-sm font-semibold text-espresso/55 underline-offset-4 transition-colors hover:text-espresso hover:underline"
             >
               Continue shopping
             </button>
