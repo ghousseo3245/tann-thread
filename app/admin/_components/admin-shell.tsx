@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Menu,
   Package,
+  Settings,
   ShoppingBag,
   Store,
   X,
@@ -19,6 +20,7 @@ const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/inventory", label: "Inventory", icon: Package },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 function SidebarBrand() {
