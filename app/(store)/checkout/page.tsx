@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useStore } from "@/lib/store";
+import { submitOrder } from "@/lib/order-api";
 import { formatPKR } from "@/lib/products";
 import { siteConfig } from "@/site.config";
 
@@ -58,6 +59,7 @@ function CheckoutContent() {
   const promo = useStore((s) => s.promo);
   const promoDiscount = useStore((s) => s.promoDiscount);
   const placeOrder = useStore((s) => s.placeOrder);
+  const recordServerOrder = useStore((s) => s.recordServerOrder);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -83,7 +85,7 @@ function CheckoutContent() {
           <span className="rounded-full bg-espresso/5 p-5">
             <ShoppingBag className="h-8 w-8 text-espresso/50" aria-hidden="true" />
           </span>
-          <h1 className="font-display mt-6 text-3xl text-espresso">Your bag is empty</h1>
+          <h1 className="font-display mt-6 text-3xl tracking-tight text-espresso">Your bag is empty</h1>
           <p className="mt-2 text-sm text-espresso/60">
             Add a few pieces before checking out. Your future favourite is waiting.
           </p>
@@ -117,33 +119,45 @@ function CheckoutContent() {
     return Object.keys(next).length === 0;
   };
 
-  const handlePlaceOrder = (event: FormEvent) => {
+  const handlePlaceOrder = async (event: FormEvent) => {
     event.preventDefault();
     if (!validate()) {
       toast("Please fix the highlighted fields.");
       return;
     }
     setPlacing(true);
+    const payload = {
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim() || undefined,
+      address: address.trim(),
+      city,
+      paymentMethod,
+      items: cart.map((item) => ({
+        name: item.name,
+        variantLabel: item.size ? `${item.color}, ${item.size}` : item.color,
+        image: item.image,
+        price: item.price,
+        qty: item.qty,
+      })),
+      subtotal,
+      discount: promoDiscount,
+      deliveryFee,
+      total,
+    };
+    // Try the server route first: it persists the order to Supabase and sends
+    // the WhatsApp owner notification. Falls back to the local order flow if
+    // the server is unreachable or the backend is not configured.
+    const { order: serverOrder } = await submitOrder(payload);
+    if (serverOrder) {
+      recordServerOrder(serverOrder);
+      router.push(
+        `/checkout/success?order=${encodeURIComponent(serverOrder.orderNumber)}`
+      );
+      return;
+    }
     try {
-      const order = placeOrder({
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim() || undefined,
-        address: address.trim(),
-        city,
-        paymentMethod,
-        items: cart.map((item) => ({
-          name: item.name,
-          variantLabel: item.size ? `${item.color}, ${item.size}` : item.color,
-          image: item.image,
-          price: item.price,
-          qty: item.qty,
-        })),
-        subtotal,
-        discount: promoDiscount,
-        deliveryFee,
-        total,
-      });
+      const order = placeOrder(payload);
       // placeOrder clears the cart and promo itself.
       router.push(`/checkout/success?order=${encodeURIComponent(order.orderNumber)}`);
     } catch {
@@ -167,16 +181,22 @@ function CheckoutContent() {
 
   return (
     <div className="container-x py-10 sm:py-14">
-      <h1 className="font-display text-4xl text-espresso sm:text-5xl">Checkout</h1>
-      <p className="mt-2 text-sm text-espresso/60">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cognac">
+        Almost yours
+      </p>
+      <h1 className="font-display mt-2 text-4xl tracking-tight text-espresso sm:text-5xl">Checkout</h1>
+      <p className="mt-2.5 text-sm text-espresso/60">
         Cash on delivery available nationwide. No account needed.
       </p>
 
       <form onSubmit={handlePlaceOrder} noValidate className="mt-8 grid gap-10 lg:grid-cols-[1fr_380px]">
         <div className="space-y-8">
           {/* Contact */}
-          <section className="rounded-2xl border border-espresso/10 p-5 sm:p-7">
-            <h2 className="font-display text-2xl text-espresso">Contact</h2>
+          <section className="rounded-3xl border border-espresso/10 bg-ivory p-5 shadow-sm sm:p-7">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cognac">
+              Step 1
+            </p>
+            <h2 className="font-display mt-1 text-2xl tracking-tight text-espresso">Contact</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="co-name" className="mb-1.5 block text-sm font-medium text-espresso">
@@ -226,8 +246,11 @@ function CheckoutContent() {
           </section>
 
           {/* Shipping */}
-          <section className="rounded-2xl border border-espresso/10 p-5 sm:p-7">
-            <h2 className="font-display text-2xl text-espresso">Shipping</h2>
+          <section className="rounded-3xl border border-espresso/10 bg-ivory p-5 shadow-sm sm:p-7">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cognac">
+              Step 2
+            </p>
+            <h2 className="font-display mt-1 text-2xl tracking-tight text-espresso">Shipping</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="co-address" className="mb-1.5 block text-sm font-medium text-espresso">
@@ -271,15 +294,18 @@ function CheckoutContent() {
           </section>
 
           {/* Payment */}
-          <section className="rounded-2xl border border-espresso/10 p-5 sm:p-7">
-            <h2 className="font-display text-2xl text-espresso">Payment</h2>
+          <section className="rounded-3xl border border-espresso/10 bg-ivory p-5 shadow-sm sm:p-7">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cognac">
+              Step 3
+            </p>
+            <h2 className="font-display mt-1 text-2xl tracking-tight text-espresso">Payment</h2>
             <div className="mt-5 space-y-3" role="radiogroup" aria-label="Payment method">
               <label
                 className={clsx(
-                  "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all",
+                  "flex cursor-pointer items-start gap-3.5 rounded-2xl border p-5 transition-all",
                   paymentMethod === "COD"
-                    ? "border-cognac bg-cognac/5 ring-1 ring-cognac"
-                    : "border-espresso/20 hover:border-espresso/40"
+                    ? "border-cognac bg-cognac/5 shadow-sm ring-1 ring-cognac"
+                    : "border-espresso/20 hover:border-espresso/40 hover:shadow-sm"
                 )}
               >
                 <input
@@ -302,10 +328,10 @@ function CheckoutContent() {
               </label>
               <label
                 className={clsx(
-                  "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all",
+                  "flex cursor-pointer items-start gap-3.5 rounded-2xl border p-5 transition-all",
                   paymentMethod === "CARD"
-                    ? "border-cognac bg-cognac/5 ring-1 ring-cognac"
-                    : "border-espresso/20 hover:border-espresso/40"
+                    ? "border-cognac bg-cognac/5 shadow-sm ring-1 ring-cognac"
+                    : "border-espresso/20 hover:border-espresso/40 hover:shadow-sm"
                 )}
               >
                 <input
@@ -384,19 +410,24 @@ function CheckoutContent() {
             ) : null}
           </section>
 
-          <Button type="submit" size="lg" className="w-full" disabled={placing}>
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full shadow-md shadow-cognac/25 transition-all hover:-translate-y-px hover:shadow-lg hover:shadow-cognac/30"
+            disabled={placing}
+          >
             {placing ? "Placing your order..." : `Place Order · ${formatPKR(total)}`}
           </Button>
         </div>
 
         {/* Order summary */}
         <aside className="lg:sticky lg:top-24 self-start">
-          <div className="rounded-2xl border border-espresso/10 bg-ivory-dark/50 p-5 sm:p-6">
-            <h2 className="font-display text-xl text-espresso">Order summary</h2>
+          <div className="rounded-3xl border border-espresso/10 bg-ivory-dark/50 p-5 shadow-sm sm:p-6">
+            <h2 className="font-display text-xl tracking-tight text-espresso">Order summary</h2>
             <ul className="mt-4 space-y-4">
               {cart.map((item) => (
-                <li key={item.variantId} className="flex gap-3">
-                  <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded-lg bg-espresso/5">
+                <li key={item.variantId} className="flex gap-3.5">
+                  <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded-xl bg-espresso/5 ring-1 ring-espresso/10">
                     <Image
                       src={item.image}
                       alt={item.name}
@@ -404,63 +435,63 @@ function CheckoutContent() {
                       sizes="56px"
                       className="object-cover"
                     />
-                    <span className="absolute right-1 top-1 rounded-full bg-espresso-deep/75 px-1.5 py-0.5 text-[10px] font-semibold text-ivory">
+                    <span className="absolute right-1 top-1 rounded-full bg-espresso-deep/80 px-1.5 py-0.5 text-[10px] font-semibold text-ivory">
                       {item.qty}
                     </span>
                   </div>
                   <div className="flex flex-1 items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium leading-snug text-espresso">{item.name}</p>
-                      <p className="mt-0.5 text-xs text-espresso/55">
+                      <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-espresso/50">
                         {item.color}
-                        {item.size ? ` / ${item.size}` : ""}
+                        {item.size ? ` · ${item.size}` : ""}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold text-espresso">
+                    <p className="text-sm font-semibold tabular-nums text-espresso">
                       {formatPKR(item.price * item.qty)}
                     </p>
                   </div>
                 </li>
               ))}
             </ul>
-            <dl className="mt-5 space-y-2 border-t border-espresso/10 pt-4 text-sm">
+            <dl className="mt-5 space-y-2.5 border-t border-espresso/10 pt-5 text-sm">
               <div className="flex justify-between">
                 <dt className="text-espresso/65">Subtotal</dt>
-                <dd className="font-medium text-espresso">{formatPKR(subtotal)}</dd>
+                <dd className="font-semibold tabular-nums text-espresso">{formatPKR(subtotal)}</dd>
               </div>
               {promoDiscount > 0 ? (
                 <div className="flex justify-between">
                   <dt className="text-espresso/65">
                     Discount{promo ? ` (${promo})` : ""}
                   </dt>
-                  <dd className="font-medium text-cognac-dark">-{formatPKR(promoDiscount)}</dd>
+                  <dd className="font-semibold tabular-nums text-cognac-dark">-{formatPKR(promoDiscount)}</dd>
                 </div>
               ) : null}
               <div className="flex justify-between">
                 <dt className="text-espresso/65">Delivery{city ? ` (${city})` : ""}</dt>
-                <dd className="font-medium text-espresso">
+                <dd className="font-semibold tabular-nums text-espresso">
                   {deliveryFee === 0 ? "Free" : formatPKR(deliveryFee)}
                 </dd>
               </div>
-              <div className="flex justify-between border-t border-espresso/10 pt-3 text-base">
+              <div className="flex items-baseline justify-between border-t border-espresso/10 pt-4 text-base">
                 <dt className="font-semibold text-espresso">Total</dt>
-                <dd className="font-display text-xl font-semibold text-espresso">
+                <dd className="font-display text-2xl font-semibold tracking-tight tabular-nums text-espresso">
                   {formatPKR(total)}
                 </dd>
               </div>
             </dl>
           </div>
 
-          <ul className="mt-5 space-y-3 text-sm text-espresso/70">
-            <li className="flex items-center gap-2.5">
+          <ul className="mt-5 space-y-3 rounded-2xl bg-ivory-dark/60 p-5 text-sm text-espresso/70 ring-1 ring-espresso/10">
+            <li className="flex items-center gap-3">
               <Truck className="h-4 w-4 shrink-0 text-cognac-dark" aria-hidden="true" />
               Nationwide delivery in 3 to 5 working days
             </li>
-            <li className="flex items-center gap-2.5">
+            <li className="flex items-center gap-3">
               <ShieldCheck className="h-4 w-4 shrink-0 text-cognac-dark" aria-hidden="true" />
               Secure checkout, cash on delivery available
             </li>
-            <li className="flex items-center gap-2.5">
+            <li className="flex items-center gap-3">
               <RotateCcw className="h-4 w-4 shrink-0 text-cognac-dark" aria-hidden="true" />
               7-day easy exchange on every order
             </li>
