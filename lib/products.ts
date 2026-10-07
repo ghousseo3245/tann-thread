@@ -740,11 +740,12 @@ export type ProductQuery = {
   maxPrice?: number;
   colors?: string[];
   inStock?: boolean;
+  onSale?: boolean;
   sort?: "featured" | "price-asc" | "price-desc" | "rating" | "newest";
 };
 
 export function queryProducts(opts: ProductQuery, list: Product[] = products): Product[] {
-  const { q, category, maxPrice, colors, inStock, sort } = opts;
+  const { q, category, maxPrice, colors, inStock, onSale, sort } = opts;
   let filtered = [...list];
   if (q) {
     const needle = q.toLowerCase();
@@ -766,6 +767,11 @@ export function queryProducts(opts: ProductQuery, list: Product[] = products): P
   }
   if (inStock) {
     filtered = filtered.filter((p) => p.variants.some((v) => v.stock > 0));
+  }
+  if (onSale) {
+    filtered = filtered.filter(
+      (p) => p.compareAtPrice !== undefined && p.compareAtPrice > p.price
+    );
   }
   switch (sort) {
     case "price-asc":

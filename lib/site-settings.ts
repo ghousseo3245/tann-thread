@@ -23,6 +23,10 @@ export const SETTING_KEYS = [
   "whatsapp_owner_number",
   "support_phone",
   "support_email",
+  "hero_slides",
+  "sale_title",
+  "sale_subtitle",
+  "sale_ends_at",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -32,9 +36,78 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   whatsapp_owner_number: DEFAULT_WHATSAPP_OWNER_NUMBER,
   support_phone: "",
   support_email: "",
+  hero_slides: "",
+  sale_title: "Private Sale",
+  sale_subtitle:
+    "Up to 25 percent off selected full-grain pieces. When the timer ends, so do the prices.",
+  sale_ends_at: "",
 };
 
 const LS_KEY = "tt-admin-settings";
+
+/** One hero carousel slide, stored as JSON in the `hero_slides` setting. */
+export type HeroSlide = {
+  eyebrow: string;
+  headline: string;
+  subtext: string;
+  ctaLabel: string;
+  ctaLink: string;
+  image: string;
+};
+
+/** Default hero slides used when the admin has not saved custom slides. */
+export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
+  {
+    eyebrow: "Full-grain leather goods",
+    headline: "Carry it for a lifetime.",
+    subtext:
+      "Bags, wallets, jackets, belts and shoes, cut and stitched by hand in Lahore from full-grain leather. Built to age beautifully, guaranteed for life.",
+    ctaLabel: "Shop Best Sellers",
+    ctaLink: "/shop",
+    image: "/images/hero.jpg",
+  },
+  {
+    eyebrow: "The craft",
+    headline: "Cut by hand. Built for decades.",
+    subtext:
+      "More than forty hand-finishing steps in our Lahore workshop. Burnished edges, solid brass hardware, and lifetime repairs on every stitch.",
+    ctaLabel: "Explore the Collection",
+    ctaLink: "/shop",
+    image: "/images/craft.jpg",
+  },
+  {
+    eyebrow: "New arrivals",
+    headline: "Leather that tells your story.",
+    subtext:
+      "Full-grain hides that scar, darken and shine with every year you carry them. No two pieces age alike.",
+    ctaLabel: "Shop New Arrivals",
+    ctaLink: "/shop?sort=newest",
+    image: "/images/products/highway-jacket.jpg",
+  },
+];
+
+/** Parse the hero_slides setting; falls back to defaults on any problem. */
+export function parseHeroSlides(raw: string | undefined | null): HeroSlide[] {
+  if (!raw || !raw.trim()) return DEFAULT_HERO_SLIDES;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return DEFAULT_HERO_SLIDES;
+    const slides = parsed
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === "object")
+      .map((s) => ({
+        eyebrow: String(s.eyebrow ?? ""),
+        headline: String(s.headline ?? ""),
+        subtext: String(s.subtext ?? ""),
+        ctaLabel: String(s.ctaLabel ?? "Shop Now"),
+        ctaLink: String(s.ctaLink ?? "/shop"),
+        image: String(s.image ?? ""),
+      }))
+      .filter((s) => s.headline.trim() && s.image.trim());
+    return slides.length > 0 ? slides : DEFAULT_HERO_SLIDES;
+  } catch {
+    return DEFAULT_HERO_SLIDES;
+  }
+}
 
 function readStoredSettings(): Record<string, string> {
   if (typeof window === "undefined") return {};
