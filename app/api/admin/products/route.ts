@@ -29,7 +29,27 @@ export async function GET() {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json((data ?? []).map(mapProductRow));
+
+  // Per-product image URLs live in products.image_url (added by migration
+  // 20261007000003). Fetch them separately so the endpoint keeps working on
+  // databases where the migration has not been applied yet.
+  const imageById = new Map<string, string>();
+  try {
+    const { data: images, error: imageError } = await ctx.db
+      .from("products")
+      .select("id, image_url");
+    if (!imageError && images) {
+      for (const row of images as { id: string; image_url: string | null }[]) {
+        if (row.image_url?.trim()) imageById.set(row.id, row.image_url);
+      }
+    }
+  } catch {
+    // image_url column missing: products fall back to the category image.
+  }
+
+  return NextResponse.json(
+    (data ?? []).map((row) => mapProductRow(row, imageById.get(row.id) ?? null))
+  );
 }
 
 /** POST /api/admin/products — create a product with one default variant. */
@@ -87,6 +107,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Best-effort: store the image URL when provided. The products.image_url
+  // column comes from migration 20261007000003; if it has not been applied
+  // yet this update is skipped and the product falls back to the category
+  // image instead of failing creation.
+  const imageUrl =
+    typeof body.imageUrl === "string" && body.imageUrl.trim()
+      ? body.imageUrl.trim()
+      : null;
+  if (imageUrl) {
+    try {
+      await ctx.db.from("products").update({ image_url: imageUrl }).eq("id", product.id);
+    } catch {
+      // column missing: leave the category-image fallback in place
+    }
+  }
   const { error: variantError } = await ctx.db.from("product_variants").insert({
     product_id: product.id,
     color: "As shown",
@@ -111,5 +146,5 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-  return NextResponse.json(mapProductRow(created), { status: 201 });
+  return NextResponse.json(mapProductRow(created, imageUrl), { status: 201 });
 }
