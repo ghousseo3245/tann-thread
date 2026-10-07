@@ -8,6 +8,7 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { siteConfig, isContactPlaceholder } from "@/site.config";
+import { useSiteSetting } from "@/lib/use-site-setting";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -46,18 +47,25 @@ export default function ContactPage() {
       hasError ? "border-red-700" : "border-espresso/20"
     );
 
+  // Admin-editable support contact details take precedence over the
+  // site.config placeholders; unfilled values keep the old behaviour.
+  const supportPhone = useSiteSetting("support_phone").trim();
+  const supportEmail = useSiteSetting("support_email").trim();
+  const contactPhone = supportPhone || siteConfig.contact.phone;
+  const contactEmail = supportEmail || siteConfig.contact.email;
+
   const infoCards = [
     {
       icon: Phone,
       label: "Phone",
-      value: siteConfig.contact.phone,
-      href: `tel:${siteConfig.contact.phone}`,
+      value: contactPhone,
+      href: `tel:${contactPhone}`,
     },
     {
       icon: Mail,
       label: "Email",
-      value: siteConfig.contact.email,
-      href: `mailto:${siteConfig.contact.email}`,
+      value: contactEmail,
+      href: `mailto:${contactEmail}`,
     },
     {
       icon: MapPin,
