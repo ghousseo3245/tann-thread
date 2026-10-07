@@ -14,7 +14,7 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product, dark }: { product: Product; dark?: boolean }) {
   const wishlist = useStore((s) => s.wishlist);
   const toggleWishlist = useStore((s) => s.toggleWishlist);
   const wishlisted = wishlist.includes(product.id);
@@ -71,24 +71,48 @@ export function ProductCard({ product }: { product: Product }) {
         />
       </button>
       <div className="px-0.5 pt-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-espresso/45">
+        <p
+          className={clsx(
+            "text-[11px] font-semibold uppercase tracking-[0.18em]",
+            dark ? "text-ivory/50" : "text-espresso/45"
+          )}
+        >
           {capitalize(product.category)}
         </p>
         <Link href={href} className="mt-1 block">
-          <h3 className="font-display text-[1.05rem] leading-snug text-espresso transition-colors group-hover:text-cognac-dark">
+          <h3
+            className={clsx(
+              "font-display text-[1.05rem] leading-snug transition-colors",
+              dark
+                ? "text-ivory group-hover:text-gold"
+                : "text-espresso group-hover:text-cognac-dark"
+            )}
+          >
             {product.name}
           </h3>
         </Link>
         <div className="mt-1.5 flex items-center gap-1.5">
           <StarRating value={product.rating} size={13} />
-          <span className="text-xs text-espresso/45">({product.reviewCount})</span>
+          <span className={clsx("text-xs", dark ? "text-ivory/50" : "text-espresso/45")}>
+            ({product.reviewCount})
+          </span>
         </div>
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-[1.05rem] font-semibold tracking-tight text-espresso">
+          <span
+            className={clsx(
+              "text-[1.05rem] font-semibold tracking-tight",
+              dark ? "text-ivory" : "text-espresso"
+            )}
+          >
             {formatPKR(product.price)}
           </span>
           {product.compareAtPrice ? (
-            <span className="text-sm text-espresso/40 line-through">
+            <span
+              className={clsx(
+                "text-sm line-through",
+                dark ? "text-ivory/40" : "text-espresso/40"
+              )}
+            >
               {formatPKR(product.compareAtPrice)}
             </span>
           ) : null}
