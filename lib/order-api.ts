@@ -7,7 +7,17 @@ export type SubmitOrderInput = {
   city: string;
   address: string;
   paymentMethod: "COD" | "CARD";
-  items: { name: string; variantLabel: string; price: number; qty: number }[];
+  items: {
+    name: string;
+    variantLabel: string;
+    price: number;
+    qty: number;
+    /** Supabase variant UUID (or demo variant id); used for stock decrement. */
+    variantId?: string;
+    productSlug?: string;
+    /** Variant SKU; fallback key for stock resolution. */
+    sku?: string;
+  }[];
   subtotal: number;
   discount: number;
   deliveryFee: number;

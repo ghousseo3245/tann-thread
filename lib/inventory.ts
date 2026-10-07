@@ -111,8 +111,10 @@ function productOverride(
   return existing;
 }
 
-/** Seed products + admin-created products, minus deleted, with overrides applied. */
-function applyDemoOverrides(): Product[] {
+/** Seed products + admin-created products, minus deleted, with overrides applied.
+ *  Exported so the public storefront catalog (lib/catalog.ts) can reuse the
+ *  same demo-mode data (including admin localStorage edits). */
+export function applyDemoOverrides(): Product[] {
   const overrides = readOverrides();
   return [...products, ...overrides.created]
     .filter((p) => !overrides.products[p.id]?.deleted)

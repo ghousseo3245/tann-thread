@@ -47,6 +47,9 @@ export type CartItem = {
   size?: string;
   price: number;
   qty: number;
+  /** SKU of the selected variant (present for carts built after this field
+   *  was added; used as a fallback key when resolving stock on the server). */
+  sku?: string;
 };
 
 export type OrderItem = {
