@@ -30,7 +30,7 @@ import { StarRating } from "@/components/ui/star-rating";
 import { useToast } from "@/components/ui/toast";
 import { useStore } from "@/lib/store";
 import { getProductBySlug, getRelatedProducts, formatPKR } from "@/lib/products";
-import { getProduct, listProducts } from "@/lib/inventory";
+import { getCatalog, getCatalogProduct } from "@/lib/catalog";
 import type { Product } from "@/lib/types";
 
 function formatDate(iso: string): string {
@@ -250,6 +250,7 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
     color: selectedVariant!.color,
     size: selectedVariant!.size,
     price: selectedVariant!.price,
+    sku: selectedVariant!.sku,
   });
 
   const handleAddToBag = () => {
@@ -865,10 +866,10 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
   const [catalog, setCatalog] = useState<Product[] | null>(null);
 
   useEffect(() => {
-    listProducts()
+    getCatalog()
       .then((ps) => setCatalog(ps.filter((p) => p.active !== false)))
       .catch(() => setCatalog([]));
-    getProduct(params.slug)
+    getCatalogProduct(params.slug)
       .then((p) => setProduct(p ?? undefined))
       .catch(() => setProduct(undefined));
   }, [params.slug]);
