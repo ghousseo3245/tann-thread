@@ -89,6 +89,26 @@ body {
   animation: fade-up 0.6s ease-out both;
 }
 
+/* Hero slow drift, used on the homepage hero image */
+@keyframes hero-drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
+.animate-hero-drift {
+  animation: hero-drift 24s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-drift {
+    animation: none;
+  }
+}
+
 /* Cart drawer slide-in from the right */
 @keyframes drawer-in {
   from {
