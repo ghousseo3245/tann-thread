@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdminResultError, requireAdmin } from "../_auth";
 import { SETTING_KEYS } from "@/lib/site-settings";
 
-const MAX_VALUE_LENGTH = 1000;
+const MAX_VALUE_LENGTH = 20000;
 
 /** GET /api/admin/settings — every setting as { key: value }. */
 export async function GET() {
@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest) {
   }
   if (typeof body.value !== "string" || body.value.length > MAX_VALUE_LENGTH) {
     return NextResponse.json(
-      { error: "Value must be a string under 1000 characters." },
+      { error: "Value must be a string under 20000 characters." },
       { status: 400 }
     );
   }
