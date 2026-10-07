@@ -35,9 +35,10 @@ type ProductRow = {
   product_variants: VariantRow[];
 };
 
-export function mapProductRow(row: ProductRow): Product {
+export function mapProductRow(row: ProductRow, imageUrl?: string | null): Product {
   // Supabase types to-many/one-to-one joins as arrays; normalize here.
   const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+  const image = imageUrl?.trim() ? imageUrl.trim() : category?.image ?? null;
   return {
     id: row.id,
     slug: row.slug,
@@ -50,8 +51,10 @@ export function mapProductRow(row: ProductRow): Product {
     price: Number(row.price),
     compareAtPrice:
       row.compare_at_price !== null ? Number(row.compare_at_price) : undefined,
-    // products table has no image column; reuse the category image.
-    images: category?.image ? [category.image] : [],
+    // products table has no image column by default; when an explicit
+    // per-product image URL is passed in (image_url, added by a later
+    // migration), it wins over the category image.
+    images: image ? [image] : [],
     variants: (row.product_variants ?? []).map((v) => ({
       id: v.id,
       color: v.color,
@@ -76,6 +79,7 @@ const TIMELINE_LABELS: Record<Exclude<OrderStatus, "Placed">, string> = {
   Shipped: "Order shipped",
   "Out for delivery": "Out for delivery",
   Delivered: "Delivered",
+  Cancelled: "Order cancelled",
 };
 
 const STATUS_ORDER: OrderStatus[] = [
@@ -87,12 +91,17 @@ const STATUS_ORDER: OrderStatus[] = [
 ];
 
 /** Synthesize a timeline from status: "Order placed" at placed_at, then the
- *  Completed/Shipped/Delivered-style steps implied by the current status. */
+ *  Confirmed/Shipped/Delivered-style steps implied by the current status.
+ *  Cancelled orders get a single "Order cancelled" step instead. */
 export function timelineForStatus(
   status: OrderStatus,
   placedAt: string
 ): { label: string; at: string }[] {
   const timeline = [{ label: "Order placed", at: placedAt }];
+  if (status === "Cancelled") {
+    timeline.push({ label: TIMELINE_LABELS.Cancelled, at: placedAt });
+    return timeline;
+  }
   const depth = STATUS_ORDER.indexOf(status);
   for (let i = 1; i <= depth; i++) {
     const s = STATUS_ORDER[i];
