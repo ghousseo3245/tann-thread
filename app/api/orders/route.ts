@@ -1,143 +1,55 @@
-import { getSupabaseAdmin } from "@/lib/db-admin";
-import type { Order } from "@/lib/types";
-import { sendWhatsAppOrderNotification } from "@/lib/whatsapp";
+import { NextResponse } from "next/server";
+import { getSupabaseClient } from "@/lib/db";
+import { mapProductRow } from "@/app/api/admin/_map";
 
-type OrderInput = {
-  name: string;
-  phone: string;
-  email?: string;
-  city: string;
-  address: string;
-  paymentMethod: "COD" | "CARD";
-  items: { name: string; variantLabel: string; price: number; qty: number }[];
-  subtotal: number;
-  discount: number;
-  deliveryFee: number;
-  total: number;
-};
+const PRODUCT_SELECT = `
+  id, slug, name, tagline, description, materials, care, price, compare_at_price,
+  rating, review_count, featured, best_seller, is_new, active, created_at,
+  categories ( slug, name, image ),
+  product_variants ( id, color, color_hex, size, sku, price, stock )
+`;
 
-const PK_MOBILE_RE = /^0?3\d{9}$/;
+/**
+ * GET /api/products — PUBLIC storefront catalog (no admin auth).
+ * Returns { ok: true, products } from Supabase, or { ok: false } when
+ * Supabase is not configured or the query fails, so the storefront can
+ * fall back to the bundled demo catalog.
+ */
+export const dynamic = "force-dynamic";
 
-function validate(body: OrderInput): string | null {
-  if (!body || typeof body !== "object") return "Invalid request body.";
-  if (typeof body.name !== "string" || body.name.trim().length < 3)
-    return "Please enter your full name (at least 3 characters).";
-  if (typeof body.phone !== "string" || !PK_MOBILE_RE.test(body.phone.replace(/[\s-]/g, "")))
-    return "Please enter a valid Pakistani mobile number (e.g. 03001234567).";
-  if (typeof body.city !== "string" || body.city.trim().length === 0)
-    return "City is required.";
-  if (typeof body.address !== "string" || body.address.trim().length === 0)
-    return "Address is required.";
-  if (body.paymentMethod !== "COD" && body.paymentMethod !== "CARD")
-    return "Payment method must be COD or CARD.";
-  if (!Array.isArray(body.items) || body.items.length === 0)
-    return "Your cart is empty.";
-  for (const item of body.items) {
-    if (
-      typeof item.name !== "string" ||
-      typeof item.price !== "number" ||
-      typeof item.qty !== "number" ||
-      item.qty < 1
-    )
-      return "One or more cart items are invalid.";
-  }
-  if (typeof body.total !== "number" || body.total <= 0)
-    return "Order total must be greater than zero.";
-  return null;
-}
-
-export async function POST(req: Request) {
-  let body: OrderInput;
-  try {
-    body = (await req.json()) as OrderInput;
-  } catch {
-    return Response.json({ ok: false, error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const validationError = validate(body);
-  if (validationError) {
-    return Response.json({ ok: false, error: validationError }, { status: 400 });
-  }
-
-  const placedAt = new Date().toISOString();
-  const orderNumber = `TT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  const order: Order = {
-    orderNumber,
-    phone: body.phone,
-    name: body.name,
-    email: body.email || undefined,
-    city: body.city,
-    address: body.address,
-    paymentMethod: body.paymentMethod,
-    items: body.items.map((i) => ({
-      name: i.name,
-      variantLabel: i.variantLabel ?? "",
-      image: "",
-      price: i.price,
-      qty: i.qty,
-    })),
-    subtotal: body.subtotal,
-    discount: body.discount,
-    deliveryFee: body.deliveryFee,
-    total: body.total,
-    status: "Placed",
-    placedAt,
-    timeline: [{ label: "Order placed", at: placedAt }],
-  };
-
-  const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    // No backend configured: let the client fall back to localStorage.
-    return Response.json({ ok: false, reason: "no-backend" }, { status: 200 });
-  }
+export async function GET() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return NextResponse.json({ ok: false });
 
   try {
-    const { data: orderRow, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        order_number: orderNumber,
-        phone: body.phone,
-        name: body.name,
-        email: body.email || null,
-        city: body.city,
-        address: body.address,
-        payment_method: body.paymentMethod,
-        subtotal: body.subtotal,
-        discount: body.discount,
-        delivery_fee: body.deliveryFee,
-        total: body.total,
-        status: "Placed",
-        placed_at: placedAt,
-      })
-      .select("id")
-      .single();
+    const { data, error } = await supabase
+      .from("products")
+      .select(PRODUCT_SELECT)
+      .order("created_at", { ascending: false });
+    if (error) return NextResponse.json({ ok: false });
 
-    if (orderError || !orderRow) {
-      throw orderError ?? new Error("orders insert returned no row");
+    // Per-product image URLs live in products.image_url (added by migration
+    // 20261007000003). Fetch them separately so the endpoint keeps working
+    // on databases where the migration has not been applied yet.
+    const imageById = new Map<string, string>();
+    try {
+      const { data: images, error: imageError } = await supabase
+        .from("products")
+        .select("id, image_url");
+      if (!imageError && images) {
+        for (const row of images as { id: string; image_url: string | null }[]) {
+          if (row.image_url?.trim()) imageById.set(row.id, row.image_url);
+        }
+      }
+    } catch {
+      // image_url column missing: products fall back to the category image.
     }
 
-    const { error: itemsError } = await supabase.from("order_items").insert(
-      order.items.map((item) => ({
-        order_id: (orderRow as { id: string }).id,
-        product_id: null,
-        variant_id: null,
-        name: item.name,
-        variant_label: item.variantLabel,
-        price: item.price,
-        qty: item.qty,
-      }))
+    const products = (data ?? []).map((row) =>
+      mapProductRow(row, imageById.get(row.id) ?? null)
     );
-
-    if (itemsError) throw itemsError;
-  } catch (err) {
-    console.error("[orders] failed to persist order:", err);
-    // Return 200 with ok:false so the client still falls back smoothly.
-    return Response.json({ ok: false, reason: "db-error" }, { status: 200 });
+    return NextResponse.json({ ok: true, products });
+  } catch {
+    return NextResponse.json({ ok: false });
   }
-
-  // Best effort WhatsApp notification to the owner. Never throws.
-  await sendWhatsAppOrderNotification(order);
-
-  return Response.json({ ok: true, order }, { status: 200 });
 }
