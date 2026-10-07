@@ -1,783 +1,336 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
-import {
-  Minus,
-  Package,
-  Plus,
-  Search,
-  Trash2,
-  TriangleAlert,
-  X,
-} from "lucide-react";
-import { clsx } from "clsx";
-import {
-  createProduct,
-  deleteProduct,
-  setProductActive,
-  updatePrice,
-  updateStock,
-  type NewProductInput,
-} from "@/lib/inventory";
-import { categories, formatPKR } from "@/lib/products";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StarRating } from "@/components/ui/star-rating";
+import { useToast } from "@/components/ui/toast";
+import { useStore } from "@/lib/store";
+import { categories } from "@/lib/products";
+import { getCatalog } from "@/lib/catalog";
 import {
-  LOW_STOCK_THRESHOLD,
-  inputClass,
-  listAdminProducts,
-  variantLabel,
-  type AdminProduct,
-} from "../_shared";
-import type { ProductVariant } from "@/lib/types";
+  DEFAULT_HERO_SLIDES,
+  SETTINGS_DEFAULTS,
+  type HeroSlide,
+} from "@/lib/site-settings";
+import { HeroSlider } from "@/components/storefront/hero-slider";
+import { SaleSection } from "@/components/storefront/sale-section";
+import { CategoryBestSellers } from "@/components/storefront/category-best-sellers";
+import { WhyChooseUs } from "@/components/storefront/why-choose-us";
+import type { Product } from "@/lib/types";
 
-type Row = { product: AdminProduct; variant: ProductVariant | null };
-type EditTarget = { productId: string; variantId: string | null; draft: string };
-type Notice = { kind: "success" | "error"; text: string };
+const TESTIMONIALS = [
+  {
+    quote:
+      "The weekender has survived two years of Lahore to Karachi trips and looks better than the day it arrived. The leather just keeps getting richer.",
+    name: "Ahmed Raza",
+    city: "Lahore",
+  },
+  {
+    quote:
+      "You can feel the quality the moment you pick it up. My bifold has molded to my pocket perfectly, and the stitching is flawless.",
+    name: "Fatima Khan",
+    city: "Karachi",
+  },
+  {
+    quote:
+      "Ordered the bomber in cognac. The fit, the stitching, the smell of the leather, everything is a level above what I expected.",
+    name: "Bilal Ahmed",
+    city: "Islamabad",
+  },
+];
 
-const SORT_OPTIONS = [
-  { value: "name", label: "Name" },
-  { value: "price-asc", label: "Price: low to high" },
-  { value: "price-desc", label: "Price: high to low" },
-  { value: "stock-asc", label: "Stock: low to high" },
-] as const;
+function NewsletterForm() {
+  const toast = useToast();
+  const subscribeNewsletter = useStore((s) => s.subscribeNewsletter);
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
 
-type SortKey = (typeof SORT_OPTIONS)[number]["value"];
-
-function categoryName(slug: string): string {
-  return categories.find((c) => c.slug === slug)?.name ?? slug;
-}
-
-export default function InventoryPage() {
-  const [products, setProducts] = useState<AdminProduct[] | null>(null);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
-  const [sort, setSort] = useState<SortKey>("name");
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [editingPrice, setEditingPrice] = useState<EditTarget | null>(null);
-  const [editingStock, setEditingStock] = useState<EditTarget | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [deleting, setDeleting] = useState<AdminProduct | null>(null);
-
-  // Add-product form state
-  const [formName, setFormName] = useState("");
-  const [formCategory, setFormCategory] = useState("");
-  const [formPrice, setFormPrice] = useState("");
-  const [formStock, setFormStock] = useState("");
-  const [formTagline, setFormTagline] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formImageUrl, setFormImageUrl] = useState("");
-  const [formActive, setFormActive] = useState(true);
-  const [formError, setFormError] = useState("");
-  const [formBusy, setFormBusy] = useState(false);
-
-  async function load() {
-    try {
-      setProducts(await listAdminProducts());
-    } catch {
-      setNotice({
-        kind: "error",
-        text: "Could not load products. Please refresh the page.",
-      });
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  /** Run a mutation, then re-fetch so the table always shows fresh data. */
-  async function mutate(action: () => Promise<void>, successText?: string) {
-    setNotice(null);
-    try {
-      await action();
-      setProducts(await listAdminProducts());
-      if (successText) setNotice({ kind: "success", text: successText });
-    } catch {
-      setNotice({ kind: "error", text: "Something went wrong. Please try again." });
-      try {
-        setProducts(await listAdminProducts());
-      } catch {
-        // Keep the stale list; the error notice is already shown.
-      }
-    }
-  }
-
-  const rows = useMemo<Row[]>(() => {
-    if (!products) return [];
-    let list: Row[] = products.flatMap(
-      (product): Row[] =>
-        product.variants.length > 0
-          ? product.variants.map((variant) => ({ product, variant }))
-          : [{ product, variant: null }]
-    );
-
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        ({ product, variant }) =>
-          product.name.toLowerCase().includes(q) ||
-          (variant?.sku ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (category !== "all") {
-      list = list.filter(({ product }) => product.category === category);
-    }
-
-    const priceOf = (row: Row) => row.variant?.price ?? row.product.price;
-    const stockOf = (row: Row) => row.variant?.stock ?? 0;
-
-    switch (sort) {
-      case "price-asc":
-        list.sort((a, b) => priceOf(a) - priceOf(b));
-        break;
-      case "price-desc":
-        list.sort((a, b) => priceOf(b) - priceOf(a));
-        break;
-      case "stock-asc":
-        list.sort((a, b) => stockOf(a) - stockOf(b));
-        break;
-      case "name":
-      default:
-        list.sort((a, b) =>
-          a.product.name.localeCompare(b.product.name, "en")
-        );
-        break;
-    }
-    return list;
-  }, [products, search, category, sort]);
-
-  /* ---------------- price editing ---------------- */
-
-  function commitPrice(row: Row) {
-    const target = editingPrice;
-    setEditingPrice(null);
-    if (!target) return;
-    const current = row.variant?.price ?? row.product.price;
-    const n = Math.round(Number(target.draft));
-    if (target.draft.trim() === "" || !Number.isFinite(n) || n <= 0 || n === current) {
-      return;
-    }
-    mutate(
-      () => updatePrice(row.product.id, row.variant ? row.variant.id : null, n),
-      "Price updated."
-    );
-  }
-
-  function priceInputKeyDown(event: KeyboardEvent<HTMLInputElement>, row: Row) {
-    if (event.key === "Enter") {
-      event.currentTarget.blur();
-    } else if (event.key === "Escape") {
-      setEditingPrice(null);
-    }
-  }
-
-  /* ---------------- stock editing ---------------- */
-
-  function changeStock(row: Row, delta: number) {
-    const variant = row.variant;
-    if (!variant) return;
-    const next = Math.max(0, Math.round(variant.stock + delta));
-    if (next === variant.stock) return;
-    mutate(() => updateStock(row.product.id, variant.id, next));
-  }
-
-  function commitStock(row: Row) {
-    const target = editingStock;
-    setEditingStock(null);
-    if (!target) return;
-    const variant = row.variant;
-    if (!variant) return;
-    const n = Math.round(Number(target.draft));
-    if (
-      target.draft.trim() === "" ||
-      !Number.isFinite(n) ||
-      n < 0 ||
-      n === variant.stock
-    ) {
-      return;
-    }
-    mutate(() => updateStock(row.product.id, variant.id, n));
-  }
-
-  function stockInputKeyDown(event: KeyboardEvent<HTMLInputElement>, row: Row) {
-    if (event.key === "Enter") {
-      event.currentTarget.blur();
-    } else if (event.key === "Escape") {
-      setEditingStock(null);
-    }
-  }
-
-  /* ---------------- add product ---------------- */
-
-  function resetAddForm() {
-    setFormName("");
-    setFormCategory("");
-    setFormPrice("");
-    setFormStock("");
-    setFormTagline("");
-    setFormDescription("");
-    setFormImageUrl("");
-    setFormActive(true);
-    setFormError("");
-  }
-
-  function openAddModal() {
-    resetAddForm();
-    setAddOpen(true);
-  }
-
-  async function handleAdd(event: FormEvent) {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
-    const priceNum = Math.round(Number(formPrice));
-    const stockNum = Math.round(Number(formStock));
+    const value = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    setError("");
+    const ok = subscribeNewsletter(value);
+    if (!ok) {
+      setError("That email is already subscribed or does not look valid.");
+      return;
+    }
+    setDone(true);
+    toast("Welcome to the list. Watch your inbox for 10 percent off.");
+  };
 
-    if (!formName.trim()) {
-      setFormError("Name is required.");
-      return;
-    }
-    if (!formCategory) {
-      setFormError("Choose a category.");
-      return;
-    }
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
-      setFormError("Price must be a positive number.");
-      return;
-    }
-    if (!Number.isFinite(stockNum) || stockNum < 0) {
-      setFormError("Stock must be zero or more.");
-      return;
-    }
-
-    setFormError("");
-    setFormBusy(true);
-    try {
-      const input: NewProductInput = {
-        name: formName.trim(),
-        category: formCategory,
-        price: priceNum,
-        stock: stockNum,
-        description: formDescription.trim(),
-        tagline: formTagline.trim() || undefined,
-        imageUrl: formImageUrl.trim() || undefined,
-        active: formActive,
-      };
-      await createProduct(input);
-      setAddOpen(false);
-      resetAddForm();
-      setProducts(await listAdminProducts());
-      setNotice({ kind: "success", text: "Product added." });
-    } catch {
-      setFormError("Could not add the product. Please try again.");
-    } finally {
-      setFormBusy(false);
-    }
+  if (done) {
+    return (
+      <div className="rounded-2xl bg-ivory/10 px-6 py-5 text-center ring-1 ring-ivory/15">
+        <p className="font-display text-xl text-ivory">You are on the list.</p>
+        <p className="mt-1 text-sm text-ivory/70">
+          Leather care guides, new arrivals and subscriber offers, straight to your inbox.
+        </p>
+      </div>
+    );
   }
-
-  /* ---------------- delete product ---------------- */
-
-  async function confirmDelete() {
-    if (!deleting) return;
-    const id = deleting.id;
-    const name = deleting.name;
-    setDeleting(null);
-    await mutate(() => deleteProduct(id), `Deleted "${name}".`);
-  }
-
-  /* ---------------- render ---------------- */
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl text-espresso">Inventory</h1>
-          <p className="mt-1 text-sm text-espresso/60">
-            Click a price or stock value to edit it inline.
-          </p>
-        </div>
-        <Button onClick={openAddModal} size="md">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add product
+    <form onSubmit={submit} noValidate>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <label htmlFor="newsletter-email" className="sr-only">
+          Email address
+        </label>
+        <input
+          id="newsletter-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Your email address"
+          className="flex-1 rounded-full border border-ivory/25 bg-ivory/10 px-5 py-3.5 text-sm text-ivory placeholder:text-ivory/50 focus:outline-none focus:ring-2 focus:ring-gold"
+        />
+        <Button type="submit" size="lg" className="shrink-0">
+          Subscribe
         </Button>
       </div>
-
-      {notice ? (
-        <div
-          className={clsx(
-            "flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium",
-            notice.kind === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-[#8C2F2F]/20 bg-[#8C2F2F]/5 text-[#8C2F2F]"
-          )}
-        >
-          <p>{notice.text}</p>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            aria-label="Dismiss message"
-            className="rounded-full p-1 hover:bg-black/5"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+      {error ? (
+        <p role="alert" className="mt-2 text-sm text-gold">
+          {error}
+        </p>
       ) : null}
+    </form>
+  );
+}
 
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-        <div className="relative md:w-72">
-          <Search
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso/40"
+function HomeSkeleton() {
+  return (
+    <div className="container-x py-16" aria-hidden="true">
+      <Skeleton className="h-10 w-2/3" />
+      <Skeleton className="mt-4 h-5 w-1/2" />
+      <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 sm:gap-x-6 lg:grid-cols-4">
+        {Array.from({ length: 8 }, (_, i) => (
+          <div key={i}>
+            <Skeleton className="aspect-[4/5] w-full rounded-2xl" />
+            <Skeleton className="mt-4 h-5 w-3/4" />
+            <Skeleton className="mt-2 h-4 w-1/3" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type SaleConfig = { title: string; subtitle: string; endsAt: string };
+
+export default function HomePage() {
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
+  const [sale, setSale] = useState<SaleConfig>({
+    title: SETTINGS_DEFAULTS.sale_title,
+    subtitle: SETTINGS_DEFAULTS.sale_subtitle,
+    endsAt: "",
+  });
+
+  useEffect(() => {
+    getCatalog()
+      .then((ps) => setProducts(ps.filter((p) => p.active !== false)))
+      .catch(() => setProducts([]));
+
+    fetch("/api/public-settings", { cache: "force-cache" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          body: {
+            heroSlides?: HeroSlide[];
+            sale?: SaleConfig;
+          } | null
+        ) => {
+          if (!body) return;
+          if (Array.isArray(body.heroSlides) && body.heroSlides.length > 0) {
+            setSlides(body.heroSlides);
+          }
+          if (body.sale) {
+            setSale({
+              title: body.sale.title || SETTINGS_DEFAULTS.sale_title,
+              subtitle: body.sale.subtitle || SETTINGS_DEFAULTS.sale_subtitle,
+              endsAt: body.sale.endsAt || "",
+            });
+          }
+        }
+      )
+      .catch(() => {
+        // defaults already in place
+      });
+  }, []);
+
+  return (
+    <>
+      <HeroSlider slides={slides} />
+
+      {/* Category showcase */}
+      <section id="collection" className="container-x scroll-mt-20 py-16 sm:py-24">
+        <SectionHeader
+          eyebrow="The collection"
+          title="Shop by category"
+          copy="Five essentials, one standard: full-grain leather, solid brass hardware and stitching that outlives trends."
+        />
+        <div className="mt-10 grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-5">
+          {categories.map((category, index) => (
+            <Link
+              key={category.slug}
+              href={`/shop?category=${category.slug}`}
+              className={
+                "group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-espresso/5 ring-1 ring-espresso/10 " +
+                (index === categories.length - 1 ? "col-span-2 lg:col-span-1" : "")
+              }
+            >
+              <Image
+                src={category.image}
+                alt={category.name}
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-t from-espresso-deep/90 via-espresso-deep/15 to-transparent"
+                aria-hidden="true"
+              />
+              <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+                <h3 className="font-display text-xl text-ivory sm:text-2xl">{category.name}</h3>
+                <p className="mt-1 text-xs text-ivory/70 sm:text-sm">{category.tagline}</p>
+                <span className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
+                  Shop now
+                  <ArrowRight
+                    className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Sale (FOMO) */}
+      {products === null ? null : (
+        <SaleSection
+          products={products}
+          title={sale.title}
+          subtitle={sale.subtitle}
+          endsAt={sale.endsAt}
+        />
+      )}
+
+      {/* Best sellers by category */}
+      {products === null ? (
+        <HomeSkeleton />
+      ) : (
+        <CategoryBestSellers products={products} />
+      )}
+
+      {/* Brand banner */}
+      <section className="container-x py-16 sm:py-24">
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-espresso/5 ring-1 ring-espresso/10">
+            <Image
+              src="/images/craft.jpg"
+              alt="Leather craftsman hand-finishing a Tann and Thread piece"
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+            />
+          </div>
+          <div>
+            <p className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.24em] text-cognac">
+              <span className="inline-block h-px w-8 bg-cognac" aria-hidden="true" />
+              The craft
+            </p>
+            <h2 className="font-display mt-4 text-balance text-3xl tracking-tight text-espresso sm:text-4xl">
+              Cut by hand. Built for decades.
+            </h2>
+            <p className="mt-5 leading-relaxed text-espresso/70">
+              Every Tann and Thread piece starts as a full-grain hide, the strongest part of the
+              leather, and passes through more than forty hand-finishing steps in our Lahore
+              workshop. We burnish every edge, set solid brass hardware and stand behind each
+              stitch with lifetime repairs.
+            </p>
+            <p className="mt-4 leading-relaxed text-espresso/70">
+              No bonded leather, no shortcuts. Just honest materials that grow more beautiful
+              with every year you carry them.
+            </p>
+            <Button className="mt-7" variant="secondary" onClick={() => router.push("/our-story")}>
+              Read our story
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Why choose us */}
+      <div className="border-y border-espresso/10 bg-ivory-dark/40">
+        <WhyChooseUs />
+      </div>
+
+      {/* Testimonials */}
+      <section className="container-x py-16 sm:py-24">
+        <SectionHeader
+          eyebrow="Word of mouth"
+          title="Loved across Pakistan"
+          copy="From daily commutes in Karachi to weekend escapes in the north, our leather goes where you go."
+        />
+        <div className="mt-10 grid gap-5 md:grid-cols-3 lg:gap-6">
+          {TESTIMONIALS.map((t) => (
+            <figure
+              key={t.name}
+              className="flex flex-col rounded-2xl border border-espresso/10 bg-ivory p-6 shadow-sm sm:p-7"
+            >
+              <blockquote className="mt-4 flex-1 leading-relaxed text-espresso/75">
+                {t.quote}
+              </blockquote>
+              <figcaption className="mt-6 border-t border-espresso/10 pt-5">
+                <StarRating value={5} size={14} />
+                <p className="mt-2 text-sm font-semibold text-espresso">{t.name}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-espresso/50">{t.city}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
+
+      {/* Newsletter band */}
+      <section className="container-x pb-16 sm:pb-24">
+        <div className="relative overflow-hidden rounded-3xl bg-espresso-deep px-6 py-14 ring-1 ring-espresso sm:px-12 sm:py-20">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,162,75,0.14),transparent_60%)]"
             aria-hidden="true"
           />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name or SKU"
-            aria-label="Search products"
-            className={clsx(inputClass, "pl-10")}
-          />
+          <div className="relative mx-auto max-w-xl text-center">
+            <span className="mx-auto inline-flex rounded-full bg-gold/15 p-3.5 ring-1 ring-gold/30">
+              <ShieldCheck className="h-7 w-7 text-gold" aria-hidden="true" />
+            </span>
+            <h2 className="font-display mt-5 text-balance text-3xl tracking-tight text-ivory sm:text-4xl">
+              Get 10 percent off your first order
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-ivory/70 sm:text-base">
+              Join the list for leather care guides, early access to new pieces and subscriber
+              offers. One email a month, worth opening.
+            </p>
+            <div className="mt-7">
+              <NewsletterForm />
+            </div>
+            <p className="mt-4 text-xs text-ivory/50">
+              By subscribing you agree to receive marketing emails. Unsubscribe anytime.
+            </p>
+          </div>
         </div>
-        <select
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-          aria-label="Filter by category"
-          className={clsx(inputClass, "md:w-48")}
-        >
-          <option value="all">All categories</option>
-          {categories.map((c) => (
-            <option key={c.slug} value={c.slug}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={sort}
-          onChange={(event) => setSort(event.target.value as SortKey)}
-          aria-label="Sort products"
-          className={clsx(inputClass, "md:w-52")}
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto rounded-2xl border border-espresso/10 bg-white">
-        <table className="w-full min-w-[900px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-espresso/10 text-xs uppercase tracking-wide text-espresso/50">
-              <th className="px-4 py-3 font-semibold">Product</th>
-              <th className="px-4 py-3 font-semibold">SKU</th>
-              <th className="px-4 py-3 font-semibold">Category</th>
-              <th className="px-4 py-3 font-semibold">Price</th>
-              <th className="px-4 py-3 font-semibold">Stock</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 font-semibold">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {products === null ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} className="border-b border-espresso/5">
-                  <td className="px-4 py-3" colSpan={7}>
-                    <Skeleton className="h-8 w-full" />
-                  </td>
-                </tr>
-              ))
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-espresso/60">
-                  No products match your filters.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => {
-                const key = row.variant
-                  ? `${row.product.id}:${row.variant.id}`
-                  : row.product.id;
-                const price = row.variant?.price ?? row.product.price;
-                const stock = row.variant?.stock;
-                const isLow = stock !== undefined && stock <= LOW_STOCK_THRESHOLD;
-                const priceEditing =
-                  editingPrice &&
-                  editingPrice.productId === row.product.id &&
-                  editingPrice.variantId === (row.variant ? row.variant.id : null);
-                const stockEditing =
-                  editingStock &&
-                  editingStock.productId === row.product.id &&
-                  editingStock.variantId === (row.variant ? row.variant.id : null);
-
-                return (
-                  <tr
-                    key={key}
-                    className={clsx(
-                      "border-b border-espresso/5 last:border-0",
-                      isLow && "bg-amber-50/70"
-                    )}
-                  >
-                    {/* Product */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {row.product.images[0] ? (
-                          <img
-                            src={row.product.images[0]}
-                            alt=""
-                            loading="lazy"
-                            className="h-11 w-11 shrink-0 rounded-xl border border-espresso/10 object-cover"
-                          />
-                        ) : (
-                          <span
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-espresso/5 text-espresso/40"
-                            aria-hidden="true"
-                          >
-                            <Package className="h-5 w-5" />
-                          </span>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-medium text-espresso">{row.product.name}</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            {row.variant ? (
-                              <span className="text-xs text-espresso/50">
-                                {variantLabel(row.variant)}
-                              </span>
-                            ) : null}
-                            {isLow ? (
-                              <Badge tone="low">
-                                <TriangleAlert
-                                  className="mr-1 h-3 w-3"
-                                  aria-hidden="true"
-                                />
-                                Low stock
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    {/* SKU */}
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs text-espresso/70">
-                        {row.variant ? row.variant.sku : "-"}
-                      </span>
-                    </td>
-                    {/* Category */}
-                    <td className="px-4 py-3 text-espresso/80">
-                      {categoryName(row.product.category)}
-                    </td>
-                    {/* Price */}
-                    <td className="px-4 py-3">
-                      {priceEditing ? (
-                        <input
-                          autoFocus
-                          type="number"
-                          min={1}
-                          value={editingPrice.draft}
-                          onChange={(event) =>
-                            setEditingPrice({ ...editingPrice, draft: event.target.value })
-                          }
-                          onBlur={() => commitPrice(row)}
-                          onKeyDown={(event) => priceInputKeyDown(event, row)}
-                          aria-label={`Edit price for ${row.product.name}`}
-                          className="w-28 rounded-lg border border-cognac bg-white px-2 py-1 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-cognac/30"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditingPrice({
-                              productId: row.product.id,
-                              variantId: row.variant ? row.variant.id : null,
-                              draft: String(price),
-                            })
-                          }
-                          title="Click to edit price"
-                          className="rounded px-1 py-0.5 font-medium text-espresso hover:bg-espresso/5"
-                        >
-                          {formatPKR(price)}
-                        </button>
-                      )}
-                    </td>
-                    {/* Stock */}
-                    <td className="px-4 py-3">
-                      {row.variant ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label={`Decrease stock for ${row.product.name}`}
-                            onClick={() => changeStock(row, -1)}
-                            disabled={stock === 0}
-                            className="rounded-full p-1.5 text-espresso transition-colors hover:bg-espresso/5 disabled:opacity-30 disabled:pointer-events-none"
-                          >
-                            <Minus className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                          {stockEditing ? (
-                            <input
-                              autoFocus
-                              type="number"
-                              min={0}
-                              value={editingStock.draft}
-                              onChange={(event) =>
-                                setEditingStock({
-                                  ...editingStock,
-                                  draft: event.target.value,
-                                })
-                              }
-                              onBlur={() => commitStock(row)}
-                              onKeyDown={(event) => stockInputKeyDown(event, row)}
-                              aria-label={`Edit stock for ${row.product.name}`}
-                              className="w-16 rounded-lg border border-cognac bg-white px-2 py-1 text-center text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-cognac/30"
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEditingStock({
-                                  productId: row.product.id,
-                                  variantId: row.variant ? row.variant.id : null,
-                                  draft: String(stock),
-                                })
-                              }
-                              title="Click to type exact stock"
-                              className={clsx(
-                                "min-w-10 rounded px-1 py-0.5 text-center font-semibold",
-                                isLow ? "text-amber-800" : "text-espresso",
-                                "hover:bg-espresso/5"
-                              )}
-                            >
-                              {stock}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            aria-label={`Increase stock for ${row.product.name}`}
-                            onClick={() => changeStock(row, 1)}
-                            className="rounded-full p-1.5 text-espresso transition-colors hover:bg-espresso/5"
-                          >
-                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-espresso/40">-</span>
-                      )}
-                    </td>
-                    {/* Status */}
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          mutate(() =>
-                            setProductActive(row.product.id, !row.product.active)
-                          )
-                        }
-                        title={
-                          row.product.active ? "Set as draft" : "Set as active"
-                        }
-                      >
-                        <Badge tone={row.product.active ? "new" : "default"}>
-                          {row.product.active ? "Active" : "Draft"}
-                        </Badge>
-                      </button>
-                    </td>
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setDeleting(row.product)}
-                        aria-label={`Delete ${row.product.name}`}
-                        title="Delete product"
-                        className="rounded-full p-2 text-espresso/50 transition-colors hover:bg-[#8C2F2F]/10 hover:text-[#8C2F2F]"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Add product modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add product">
-        <form onSubmit={handleAdd} className="space-y-4">
-          <div>
-            <label htmlFor="new-name" className="mb-1.5 block text-sm font-medium text-espresso">
-              Name *
-            </label>
-            <input
-              id="new-name"
-              value={formName}
-              onChange={(event) => setFormName(event.target.value)}
-              className={inputClass}
-              placeholder="e.g. Voyager Duffle"
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="new-category" className="mb-1.5 block text-sm font-medium text-espresso">
-                Category *
-              </label>
-              <select
-                id="new-category"
-                value={formCategory}
-                onChange={(event) => setFormCategory(event.target.value)}
-                className={inputClass}
-              >
-                <option value="">Select category</option>
-                {categories.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="new-price" className="mb-1.5 block text-sm font-medium text-espresso">
-                Price (PKR) *
-              </label>
-              <input
-                id="new-price"
-                type="number"
-                min={1}
-                value={formPrice}
-                onChange={(event) => setFormPrice(event.target.value)}
-                className={inputClass}
-                placeholder="e.g. 12500"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="new-stock" className="mb-1.5 block text-sm font-medium text-espresso">
-                Stock *
-              </label>
-              <input
-                id="new-stock"
-                type="number"
-                min={0}
-                value={formStock}
-                onChange={(event) => setFormStock(event.target.value)}
-                className={inputClass}
-                placeholder="e.g. 20"
-              />
-            </div>
-            <div>
-              <label htmlFor="new-tagline" className="mb-1.5 block text-sm font-medium text-espresso">
-                Tagline
-              </label>
-              <input
-                id="new-tagline"
-                value={formTagline}
-                onChange={(event) => setFormTagline(event.target.value)}
-                className={inputClass}
-                placeholder="Short selling line"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="new-description" className="mb-1.5 block text-sm font-medium text-espresso">
-              Description
-            </label>
-            <textarea
-              id="new-description"
-              value={formDescription}
-              onChange={(event) => setFormDescription(event.target.value)}
-              rows={4}
-              className={inputClass}
-              placeholder="Full product description"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="new-image" className="mb-1.5 block text-sm font-medium text-espresso">
-              Image URL
-            </label>
-            <input
-              id="new-image"
-              type="url"
-              value={formImageUrl}
-              onChange={(event) => setFormImageUrl(event.target.value)}
-              className={inputClass}
-              placeholder="https://..."
-            />
-            <p className="mt-1 text-xs text-espresso/50">
-              Used as the product thumbnail. Leave empty to use the category image.
-            </p>
-          </div>
-
-          <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-espresso">
-            <input
-              type="checkbox"
-              checked={formActive}
-              onChange={(event) => setFormActive(event.target.checked)}
-              className="h-4 w-4 rounded accent-[#C17A3D]"
-            />
-            Active (visible in the store)
-          </label>
-
-          {formError ? (
-            <p className="text-sm font-medium text-[#8C2F2F]">{formError}</p>
-          ) : null}
-
-          <div className="flex justify-end gap-3 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAddOpen(false)}
-              disabled={formBusy}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={formBusy}>
-              {formBusy ? "Adding..." : "Add product"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Delete confirmation modal */}
-      <Modal
-        open={deleting !== null}
-        onClose={() => setDeleting(null)}
-        title="Delete product"
-      >
-        {deleting ? (
-          <div className="space-y-5">
-            <p className="text-sm leading-relaxed text-espresso/80">
-              Delete <strong className="text-espresso">{deleting.name}</strong>? This
-              removes the product and all of its variants permanently.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDeleting(null)}
-              >
-                Cancel
-              </Button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#8C2F2F] px-6 py-3 text-sm font-medium text-white transition-all hover:bg-[#6f2525] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C2F2F]"
-              >
-                Delete product
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
-    </div>
+      </section>
+    </>
   );
 }
