@@ -10,7 +10,6 @@ import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 
 const SHOP_MENU = [
-  { label: "Shop All", href: "/shop", tagline: "The full collection" },
   { label: "Bags", href: "/shop?category=bags", tagline: "Carry it all, in full-grain leather" },
   { label: "Wallets", href: "/shop?category=wallets", tagline: "Slim profiles that age beautifully" },
   { label: "Jackets", href: "/shop?category=jackets", tagline: "Timeless silhouettes, broken-in comfort" },
