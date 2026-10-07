@@ -37,7 +37,7 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   support_phone: "",
   support_email: "",
   hero_slides: "",
-  sale_title: "Private Sale",
+  sale_title: "Premium Sale",
   sale_subtitle:
     "Up to 25 percent off selected full-grain pieces. When the timer ends, so do the prices.",
   sale_ends_at: "",
