@@ -6,7 +6,7 @@ import { PackageSearch, SlidersHorizontal, X } from "lucide-react";
 import { clsx } from "clsx";
 import { queryProducts, formatPKR } from "@/lib/products";
 import type { ProductQuery } from "@/lib/products";
-import { listProducts } from "@/lib/inventory";
+import { getCatalog } from "@/lib/catalog";
 import type { Product } from "@/lib/types";
 import { ProductCard } from "@/components/ui/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +37,7 @@ function ShopContent() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    listProducts()
+    getCatalog()
       .then((ps) => {
         const visible = ps.filter((p) => p.active !== false);
         setAllProducts(visible);
