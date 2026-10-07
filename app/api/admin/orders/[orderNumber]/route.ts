@@ -7,8 +7,8 @@ const VALID_STATUSES: OrderStatus[] = [
   "Placed",
   "Confirmed",
   "Shipped",
-  "Out for delivery",
   "Delivered",
+  "Cancelled",
 ];
 
 /** GET /api/admin/orders — all orders, newest first, with items and a
