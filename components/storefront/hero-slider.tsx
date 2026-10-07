@@ -8,7 +8,7 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/button";
 import type { HeroSlide } from "@/lib/site-settings";
 
-const AUTOPLAY_MS = 6000;
+const AUTOPLAY_MS = 4000;
 
 const HERO_STATS = [
   { value: "Full-grain", label: "leather only" },
@@ -18,7 +18,7 @@ const HERO_STATS = [
 
 /**
  * HeroSlider — premium auto-playing carousel for the homepage hero.
- * Autoplay every 6s, pause on hover/focus, dots + arrows, keyboard
+ * Autoplay every 4s, pause on hover/focus, dots + arrows, keyboard
  * accessible (arrow keys), crossfade transition.
  */
 export function HeroSlider({ slides }: { slides: HeroSlide[] }) {
@@ -72,6 +72,7 @@ export function HeroSlider({ slides }: { slides: HeroSlide[] }) {
             alt=""
             fill
             priority={i === 0}
+            loading={i === 0 ? "eager" : "lazy"}
             sizes="100vw"
             className={clsx(
               "object-cover",
