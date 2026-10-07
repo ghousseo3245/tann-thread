@@ -14,12 +14,21 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
 export const LOW_STOCK_THRESHOLD: number =
   (siteConfig as typeof siteConfig & { lowStockThreshold?: number }).lowStockThreshold ?? 5;
 
+/** The canonical order pipeline shown in the admin UI. "Cancelled" is a
+ *  terminal side state, offered separately from the forward pipeline.
+ *  "Out for delivery" remains a valid legacy status on old rows but is no
+ *  longer part of the pipeline. */
 export const ORDER_STATUSES: OrderStatus[] = [
   "Placed",
   "Confirmed",
   "Shipped",
-  "Out for delivery",
   "Delivered",
+];
+
+/** Every status the status-update select may offer. */
+export const UPDATABLE_STATUSES: OrderStatus[] = [
+  ...ORDER_STATUSES,
+  "Cancelled",
 ];
 
 /** Badge tone per order status (matches the tones in components/ui/badge.tsx). */
@@ -32,6 +41,8 @@ export function statusTone(status: OrderStatus): "default" | "sale" | "new" | "l
       return "low";
     case "Delivered":
       return "new";
+    case "Cancelled":
+      return "sale";
     case "Placed":
     default:
       return "default";
