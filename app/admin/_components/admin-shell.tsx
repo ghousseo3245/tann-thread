@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Menu,
   Package,
+  PenLine,
   Settings,
   ShoppingBag,
   Store,
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/inventory", label: "Inventory", icon: Package },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/content", label: "Site Content", icon: PenLine },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
