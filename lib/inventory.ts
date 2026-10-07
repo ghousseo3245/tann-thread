@@ -25,6 +25,8 @@ export type NewProductInput = {
   materials?: string;
   care?: string;
   active?: boolean;
+  /** Optional image URL for the product thumbnail. */
+  imageUrl?: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -248,6 +250,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
     const category =
       categories.find((c) => c.slug === input.category) ?? categories[0];
     const variantId = `${id}-shown`;
+    const imageUrl = input.imageUrl?.trim() ? input.imageUrl.trim() : null;
     const product: Product = {
       id,
       slug: id,
@@ -258,7 +261,7 @@ export async function createProduct(input: NewProductInput): Promise<Product> {
       materials: input.materials ?? "",
       care: input.care ?? "",
       price: input.price,
-      images: [category.image],
+      images: imageUrl ? [imageUrl] : [category.image],
       variants: [
         {
           id: variantId,

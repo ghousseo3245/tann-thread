@@ -57,7 +57,13 @@ export type OrderItem = {
   qty: number;
 };
 
-export type OrderStatus = "Placed" | "Confirmed" | "Shipped" | "Out for delivery" | "Delivered";
+export type OrderStatus =
+  | "Placed"
+  | "Confirmed"
+  | "Shipped"
+  | "Out for delivery"
+  | "Delivered"
+  | "Cancelled";
 
 export type Order = {
   orderNumber: string;

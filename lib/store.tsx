@@ -134,6 +134,7 @@ type StoreValue = {
   wishlist: string[];
   toggleWishlist: (id: string) => void;
   placeOrder: (input: NewOrderInput) => Order;
+  recordServerOrder: (order: Order) => void;
   orders: Order[];
   getOrder: (orderNumber: string, phone: string) => Order | undefined;
   getReviews: (productSlug: string) => Review[];
@@ -271,6 +272,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return order;
   };
 
+  /**
+   * Record an order that was placed through the server API route
+   * (POST /api/orders). The server persists it to Supabase and sends the
+   * WhatsApp owner notification; here we mirror it into the local order
+   * history so the success page and track-order lookup can find it, and
+   * clear the cart/promo like placeOrder does.
+   */
+  const recordServerOrder = (order: Order) => {
+    setOrders((prev) =>
+      prev.some((o) => o.orderNumber === order.orderNumber)
+        ? prev
+        : [order, ...prev]
+    );
+    setCart([]);
+    setPromo(null);
+    setLastRemoved(null);
+  };
+
   const getOrder = (
     orderNumber: string,
     phone: string
@@ -326,6 +345,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     wishlist,
     toggleWishlist,
     placeOrder,
+    recordServerOrder,
     orders,
     getOrder,
     getReviews,
