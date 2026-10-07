@@ -64,6 +64,9 @@ function ShopContent() {
   const [maxPrice, setMaxPrice] = useState(priceCap);
   const [colors, setColors] = useState<string[]>([]);
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [onSaleOnly, setOnSaleOnly] = useState(
+    () => searchParams.get("onSale") === "true"
+  );
   const [sort, setSort] = useState<SortKey>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -72,6 +75,7 @@ function ShopContent() {
     setQ(searchParams.get("q") ?? "");
     const c = searchParams.get("category");
     if (c) setCategory(c);
+    setOnSaleOnly(searchParams.get("onSale") === "true");
   }, [searchParams]);
 
   const results = useMemo(() => {
@@ -82,8 +86,9 @@ function ShopContent() {
     if (maxPrice < priceCap) query.maxPrice = maxPrice;
     if (colors.length > 0) query.colors = colors;
     if (inStockOnly) query.inStock = true;
+    if (onSaleOnly) query.onSale = true;
     return queryProducts(query, allProducts);
-  }, [q, category, maxPrice, priceCap, colors, inStockOnly, sort, loaded, allProducts]);
+  }, [q, category, maxPrice, priceCap, colors, inStockOnly, onSaleOnly, sort, loaded, allProducts]);
 
   const toggleColor = (name: string) =>
     setColors((prev) => (prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]));
@@ -94,6 +99,7 @@ function ShopContent() {
     setMaxPrice(priceCap);
     setColors([]);
     setInStockOnly(false);
+    setOnSaleOnly(false);
     setSort("featured");
   };
 
@@ -107,6 +113,7 @@ function ShopContent() {
     pills.push({ label: c, onClear: () => setColors((prev) => prev.filter((x) => x !== c)) })
   );
   if (inStockOnly) pills.push({ label: "In stock", onClear: () => setInStockOnly(false) });
+  if (onSaleOnly) pills.push({ label: "On sale", onClear: () => setOnSaleOnly(false) });
 
   if (!loaded) return <ShopSkeleton />;
 
