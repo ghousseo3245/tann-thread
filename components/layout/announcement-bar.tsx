@@ -2,9 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { siteConfig } from "@/site.config";
+import { useSiteSetting } from "@/lib/use-site-setting";
 
 export function AnnouncementBar() {
-  const messages = siteConfig.announcementMessages;
+  // A saved announcement_text setting overrides the rotating messages.
+  // Empty/whitespace keeps the defaults.
+  const customMessage = useSiteSetting("announcement_text");
+  const messages = customMessage.trim()
+    ? [customMessage.trim()]
+    : siteConfig.announcementMessages;
   const [index, setIndex] = useState(0);
 
   useEffect(() => {

@@ -21,7 +21,6 @@ const NAV_LINKS = [
   { label: "Shop All", href: "/shop" },
   ...CATEGORY_LINKS.map((c) => ({ label: c.label, href: `/shop?category=${c.slug}` })),
   { label: "Our Story", href: "/our-story" },
-  { label: "Journal", href: "/journal" },
   { label: "Track Order", href: "/track-order" },
   { label: "Contact", href: "/contact" },
 ];
@@ -31,7 +30,7 @@ function CountBadge({ count, label }: { count: number; label: string }) {
   return (
     <span
       aria-label={label}
-      className="absolute -top-1 -right-1 bg-cognac text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none"
+      className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-cognac text-[10px] font-semibold leading-none text-white"
     >
       {count > 99 ? "99+" : count}
     </span>
@@ -65,21 +64,25 @@ function SearchForm({ onNavigate, autoFocus }: { onNavigate?: () => void; autoFo
         placeholder="Search leather goods"
         aria-label="Search products"
         className={clsx(
-          "h-10 rounded-full border border-espresso/20 bg-ivory px-4 text-sm text-espresso placeholder:text-espresso/40 focus:outline-none focus:ring-2 focus:ring-cognac transition-all duration-300",
-          expanded || query ? "w-44 sm:w-56 opacity-100" : "w-0 px-0 opacity-0 border-transparent"
+          "h-10 rounded-full border border-espresso/20 bg-ivory px-4 text-sm text-espresso placeholder:text-espresso/40 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cognac",
+          expanded || query ? "w-44 opacity-100 sm:w-56" : "w-0 border-transparent px-0 opacity-0"
         )}
       />
       <button
         type="button"
-        aria-label="Search"
+        aria-label={expanded ? "Collapse search" : "Search"}
+        aria-expanded={expanded}
         onClick={() => setExpanded((prev) => !prev)}
-        className="rounded-full p-2.5 text-espresso hover:bg-espresso/5 transition-colors -ml-1"
+        className="-ml-1 rounded-full p-2.5 text-espresso transition-colors hover:bg-espresso/5"
       >
         <Search className="h-5 w-5" aria-hidden="true" />
       </button>
     </form>
   );
 }
+
+const NAV_LINK_CLASS =
+  "relative whitespace-nowrap text-[13px] font-semibold uppercase tracking-[0.12em] text-espresso/70 transition-colors hover:text-espresso after:absolute after:-bottom-1.5 after:left-0 after:h-px after:w-0 after:bg-cognac after:transition-all after:duration-300 hover:after:w-full";
 
 export function Header() {
   const router = useRouter();
@@ -90,43 +93,39 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-ivory/90 backdrop-blur border-b border-espresso/10">
-        <div className="container-x flex h-16 lg:h-20 items-center justify-between gap-2">
+      <header className="sticky top-0 z-40 border-b border-espresso/10 bg-ivory/90 backdrop-blur-md">
+        <div className="container-x flex h-16 items-center justify-between gap-2 lg:h-[4.5rem]">
           <button
             type="button"
             aria-label="Open menu"
             onClick={() => setMenuOpen(true)}
-            className="rounded-full p-2.5 text-espresso hover:bg-espresso/5 transition-colors lg:hidden"
+            className="rounded-full p-2.5 text-espresso transition-colors hover:bg-espresso/5 lg:hidden"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
 
           <Link href="/" aria-label="Tann and Thread home" className="shrink-0">
-            <span className="font-display text-2xl font-semibold text-espresso">
+            <span className="font-display text-[1.4rem] font-semibold tracking-tight text-espresso">
               Tann <span className="text-cognac">&</span> Thread
             </span>
           </Link>
 
-          <nav aria-label="Primary" className="hidden lg:flex items-center gap-6 text-sm">
+          <nav aria-label="Primary" className="hidden items-center gap-7 lg:flex">
             {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-espresso/80 hover:text-cognac transition-colors whitespace-nowrap"
-              >
+              <Link key={link.href} href={link.href} className={NAV_LINK_CLASS}>
                 {link.label}
               </Link>
             ))}
           </nav>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <div className="hidden sm:block">
               <SearchForm />
             </div>
             <Link
               href="/wishlist"
               aria-label="Wishlist"
-              className="relative rounded-full p-2.5 text-espresso hover:bg-espresso/5 transition-colors"
+              className="relative rounded-full p-2.5 text-espresso transition-colors hover:bg-espresso/5"
             >
               <Heart className="h-5 w-5" aria-hidden="true" />
               <CountBadge count={wishlist.length} label={`${wishlist.length} items in wishlist`} />
@@ -135,7 +134,7 @@ export function Header() {
               type="button"
               aria-label="Open cart"
               onClick={() => setCartOpen(true)}
-              className="relative rounded-full p-2.5 text-espresso hover:bg-espresso/5 transition-colors"
+              className="relative rounded-full p-2.5 text-espresso transition-colors hover:bg-espresso/5"
             >
               <ShoppingBag className="h-5 w-5" aria-hidden="true" />
               <CountBadge count={cartCount} label={`${cartCount} items in cart`} />
@@ -170,7 +169,7 @@ export function Header() {
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className="rounded-lg px-3 py-3 text-espresso hover:bg-espresso/5 transition-colors"
+              className="rounded-xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-espresso/80 transition-colors hover:bg-espresso/5 hover:text-espresso"
             >
               {link.label}
             </Link>
