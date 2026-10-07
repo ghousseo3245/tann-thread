@@ -14,7 +14,7 @@ import { StarRating } from "@/components/ui/star-rating";
 import { useToast } from "@/components/ui/toast";
 import { useStore } from "@/lib/store";
 import { categories, queryProducts } from "@/lib/products";
-import { listProducts } from "@/lib/inventory";
+import { getCatalog } from "@/lib/catalog";
 import type { Product } from "@/lib/types";
 
 const TESTIMONIALS = [
@@ -129,7 +129,7 @@ export default function HomePage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    listProducts()
+    getCatalog()
       .then((ps) => {
         const visible = ps.filter((p) => p.active !== false);
         setBestSellers(queryProducts({ sort: "featured" }, visible).slice(0, 8));
