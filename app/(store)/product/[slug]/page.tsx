@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import {
   Bell,
   Check,
+  Expand,
   Heart,
   RotateCcw,
   Ruler,
@@ -348,7 +349,7 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
             type="button"
             onClick={() => setLightboxOpen(true)}
             aria-label={`Open ${product.name} image in full view`}
-            className="relative block aspect-[4/5] w-full overflow-hidden rounded-2xl bg-espresso/5"
+            className="relative block aspect-[4/5] w-full overflow-hidden rounded-3xl bg-espresso/5 ring-1 ring-espresso/10"
           >
             <Image
               src={product.images[imageIndex] ?? product.images[0]}
@@ -358,12 +359,13 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
               sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-cover"
             />
-            <span className="absolute bottom-3 right-3 rounded-full bg-espresso-deep/70 px-3 py-1.5 text-xs font-medium text-ivory">
+            <span className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full bg-espresso-deep/75 px-3.5 py-2 text-xs font-semibold tracking-wide text-ivory backdrop-blur transition-colors group-hover:bg-espresso-deep/90">
+              <Expand className="h-3.5 w-3.5" aria-hidden="true" />
               Tap to zoom
             </span>
           </button>
           {product.images.length > 1 ? (
-            <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+            <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
               {product.images.map((src, i) => (
                 <button
                   key={src}
@@ -372,8 +374,10 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
                   aria-label={`View image ${i + 1}`}
                   aria-pressed={imageIndex === i}
                   className={clsx(
-                    "relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-espresso/5 ring-2 ring-offset-2 ring-offset-ivory transition-all",
-                    imageIndex === i ? "ring-cognac" : "ring-transparent hover:ring-espresso/30"
+                    "relative h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-espresso/5 ring-2 ring-offset-2 ring-offset-ivory transition-all",
+                    imageIndex === i
+                      ? "ring-cognac"
+                      : "ring-transparent opacity-70 hover:opacity-100 hover:ring-espresso/30"
                   )}
                 >
                   <Image src={src} alt="" fill sizes="64px" className="object-cover" />
@@ -392,8 +396,13 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
             {lowStock ? <Badge tone="low">Only {selectedVariant?.stock} left</Badge> : null}
           </div>
 
-          <h1 className="font-display mt-3 text-3xl text-espresso sm:text-4xl">{product.name}</h1>
-          <p className="mt-1 text-espresso/60">{product.tagline}</p>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-cognac-dark">
+            {product.category}
+          </p>
+          <h1 className="font-display mt-1.5 text-balance text-3xl tracking-tight text-espresso sm:text-[2.6rem] sm:leading-[1.1]">
+            {product.name}
+          </h1>
+          <p className="mt-2 text-[15px] text-espresso/60">{product.tagline}</p>
 
           <a href="#reviews" className="mt-3 inline-flex items-center gap-2">
             <StarRating value={reviewAvg} size={16} />
@@ -402,23 +411,31 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
             </span>
           </a>
 
-          <div className="mt-4 flex items-baseline gap-3">
-            <span className="text-3xl font-semibold text-espresso">
+          <div className="mt-5 flex items-baseline gap-3 border-y border-espresso/10 py-4">
+            <span className="text-[1.7rem] font-semibold tracking-tight text-espresso tabular-nums">
               {formatPKR(selectedVariant?.price ?? product.price)}
             </span>
             {product.compareAtPrice ? (
-              <span className="text-lg text-espresso/40 line-through">
+              <span className="text-base text-espresso/40 line-through tabular-nums">
                 {formatPKR(product.compareAtPrice)}
+              </span>
+            ) : null}
+            {product.compareAtPrice ? (
+              <span className="rounded-full bg-[#8C2F2F]/10 px-2.5 py-1 text-xs font-semibold text-[#8C2F2F]">
+                Save {formatPKR(product.compareAtPrice - (selectedVariant?.price ?? product.price))}
               </span>
             ) : null}
           </div>
 
           {/* Colour selector */}
           <div className="mt-6">
-            <p className="text-sm font-medium text-espresso">
-              Colour: <span className="font-normal text-espresso/65">{color}</span>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-espresso/55">
+              Colour{" "}
+              <span className="ml-1 font-medium normal-case tracking-normal text-espresso">
+                {color}
+              </span>
             </p>
-            <div className="mt-2.5 flex flex-wrap gap-2.5">
+            <div className="mt-3 flex flex-wrap gap-3">
               {colorOptions.map((c) => (
                 <button
                   key={c.color}
@@ -430,8 +447,8 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
                   className={clsx(
                     "h-10 w-10 rounded-full border transition-all",
                     color === c.color
-                      ? "border-cognac ring-2 ring-cognac ring-offset-2 ring-offset-ivory"
-                      : "border-espresso/20 hover:border-espresso/50"
+                      ? "scale-105 border-cognac ring-2 ring-cognac ring-offset-2 ring-offset-ivory"
+                      : "border-espresso/20 hover:scale-105 hover:border-espresso/50"
                   )}
                   style={{ backgroundColor: c.colorHex }}
                 />
@@ -443,19 +460,19 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
           {sizes.length > 0 ? (
             <div className="mt-6">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-espresso">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-espresso/55">
                   Size{size ? `: ${size}` : ""}
                 </p>
                 <button
                   type="button"
                   onClick={() => setSizeGuideOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cognac-dark underline-offset-2 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-cognac-dark underline-offset-2 hover:underline"
                 >
                   <Ruler className="h-4 w-4" aria-hidden="true" />
                   Size guide
                 </button>
               </div>
-              <div className="mt-2.5 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2.5">
                 {sizes.map((s) => {
                   const variant = product.variants.find((v) => v.color === color && v.size === s);
                   const out = !variant || variant.stock === 0;
@@ -471,9 +488,9 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
                         setQty(1);
                       }}
                       className={clsx(
-                        "min-w-12 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
+                        "min-w-12 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
                         size === s
-                          ? "border-espresso bg-espresso text-ivory"
+                          ? "border-espresso bg-espresso text-ivory shadow-sm"
                           : "border-espresso/25 text-espresso hover:border-espresso",
                         out && "cursor-not-allowed border-espresso/15 text-espresso/35 line-through"
                       )}
@@ -488,7 +505,7 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
 
           {/* Stock / notify */}
           {soldOut ? (
-            <div className="mt-6 rounded-2xl border border-espresso/15 bg-ivory-dark/60 p-5">
+            <div className="mt-6 rounded-2xl border border-espresso/15 bg-ivory-dark/60 p-5 ring-1 ring-espresso/5">
               <p className="flex items-center gap-2 text-sm font-semibold text-espresso">
                 <Bell className="h-4 w-4 text-cognac-dark" aria-hidden="true" />
                 Sold out in {color}
@@ -515,7 +532,7 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
           ) : null}
 
           {/* Qty + actions */}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <QuantityStepper
               qty={qty}
               onChange={(q) => setQty(Math.min(q, selectedVariant?.stock ?? q))}
@@ -525,7 +542,7 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
                 size="lg"
                 onClick={handleAddToBag}
                 disabled={soldOut}
-                className="w-full"
+                className="w-full shadow-md shadow-cognac/25 transition-all hover:-translate-y-px hover:shadow-lg hover:shadow-cognac/30"
               >
                 <ShoppingBag className="h-4 w-4" aria-hidden="true" />
                 Add to Bag
@@ -540,10 +557,10 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
                 toast(wishlisted ? "Removed from your wishlist." : "Saved to your wishlist.");
               }}
               className={clsx(
-                "rounded-full border p-3.5 transition-all",
+                "rounded-full border p-3.5 shadow-sm transition-all hover:-translate-y-px",
                 wishlisted
                   ? "border-cognac bg-cognac/10"
-                  : "border-espresso/25 hover:border-espresso"
+                  : "border-espresso/25 hover:border-espresso/60"
               )}
             >
               <Heart
@@ -555,7 +572,7 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
               type="button"
               aria-label="Share this product"
               onClick={handleShare}
-              className="rounded-full border border-espresso/25 p-3.5 transition-all hover:border-espresso"
+              className="rounded-full border border-espresso/25 p-3.5 shadow-sm transition-all hover:-translate-y-px hover:border-espresso/60"
             >
               <Share2 className="h-5 w-5 text-espresso" aria-hidden="true" />
             </button>
@@ -565,22 +582,22 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
             variant="secondary"
             onClick={handleBuyNow}
             disabled={soldOut}
-            className="mt-3 w-full"
+            className="mt-3 w-full shadow-md shadow-espresso/20 transition-all hover:-translate-y-px"
           >
             Buy Now
           </Button>
 
           {/* Trust notes */}
-          <ul className="mt-6 space-y-2.5 text-sm text-espresso/70">
-            <li className="flex items-center gap-2.5">
+          <ul className="mt-7 space-y-3 rounded-2xl bg-ivory-dark/60 p-5 text-sm text-espresso/70 ring-1 ring-espresso/10">
+            <li className="flex items-center gap-3">
               <Truck className="h-4 w-4 shrink-0 text-cognac-dark" aria-hidden="true" />
               Nationwide delivery in 3 to 5 working days
             </li>
-            <li className="flex items-center gap-2.5">
+            <li className="flex items-center gap-3">
               <RotateCcw className="h-4 w-4 shrink-0 text-cognac-dark" aria-hidden="true" />
               7-day easy exchange, no questions asked
             </li>
-            <li className="flex items-center gap-2.5">
+            <li className="flex items-center gap-3">
               <ShieldCheck className="h-4 w-4 shrink-0 text-cognac-dark" aria-hidden="true" />
               Lifetime repairs on every stitch
             </li>
@@ -627,10 +644,13 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
       </div>
 
       {/* Reviews */}
-      <section id="reviews" className="mt-16 scroll-mt-24 sm:mt-20">
-        <h2 className="font-display text-3xl text-espresso">Reviews</h2>
+      <section id="reviews" className="mt-16 scroll-mt-24 border-t border-espresso/10 pt-12 sm:mt-20 sm:pt-14">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cognac">
+          What owners say
+        </p>
+        <h2 className="font-display mt-2 text-3xl tracking-tight text-espresso">Reviews</h2>
         <div className="mt-6 grid gap-10 lg:grid-cols-[300px_1fr]">
-          <div className="rounded-2xl border border-espresso/10 p-6 self-start">
+          <div className="rounded-2xl border border-espresso/10 bg-ivory p-6 shadow-sm self-start">
             <p className="font-display text-5xl text-espresso">{reviewAvg.toFixed(1)}</p>
             <StarRating value={reviewAvg} size={18} />
             <p className="mt-1 text-sm text-espresso/60">
@@ -692,9 +712,14 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
 
       {/* Related products */}
       {related.length > 0 ? (
-        <section className="mt-16 sm:mt-20">
-          <h2 className="font-display text-3xl text-espresso">You may also like</h2>
-          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:gap-x-6 lg:grid-cols-4">
+        <section className="mt-16 border-t border-espresso/10 pt-12 sm:mt-20 sm:pt-14">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cognac">
+            Complete the carry
+          </p>
+          <h2 className="font-display mt-2 text-3xl tracking-tight text-espresso">
+            You may also like
+          </h2>
+          <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-4">
             {related.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
@@ -704,9 +729,14 @@ function ProductDetail({ product, catalog }: { product: Product; catalog: Produc
 
       {/* Recently viewed */}
       {recent.length > 0 ? (
-        <section className="mt-16 sm:mt-20">
-          <h2 className="font-display text-3xl text-espresso">Recently viewed</h2>
-          <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:gap-6">
+        <section className="mt-16 border-t border-espresso/10 pt-12 sm:mt-20 sm:pt-14">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cognac">
+            Pick up where you left off
+          </p>
+          <h2 className="font-display mt-2 text-3xl tracking-tight text-espresso">
+            Recently viewed
+          </h2>
+          <div className="mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:gap-6">
             {recent.map((p) => (
               <div key={p.id} className="w-40 shrink-0 snap-start sm:w-56">
                 <ProductCard product={p} />
