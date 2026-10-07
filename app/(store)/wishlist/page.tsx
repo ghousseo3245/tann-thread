@@ -1,19 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { ProductCard } from "@/components/ui/product-card";
 import { useStore } from "@/lib/store";
-import { products } from "@/lib/products";
+import { getCatalog } from "@/lib/catalog";
+import type { Product } from "@/lib/types";
 
 export default function WishlistPage() {
   const router = useRouter();
   const wishlist = useStore((s) => s.wishlist);
+  const [catalog, setCatalog] = useState<Product[]>([]);
+
+  useEffect(() => {
+    getCatalog()
+      .then(setCatalog)
+      .catch(() => setCatalog([]));
+  }, []);
 
   const items = wishlist
-    .map((id) => products.find((p) => p.id === id))
+    .map((id) => catalog.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => p !== undefined);
 
   return (
